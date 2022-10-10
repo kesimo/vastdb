@@ -1,7 +1,7 @@
 package vastdb
 
 import (
-	json2 "encoding/json"
+	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -56,7 +56,7 @@ func valueToString[T any](val T) (string, error) {
 		}
 		return "0", nil
 	default:
-		b, err := json2.Marshal(val) //TODO use gob
+		b, err := json.Marshal(val) //TODO use gob
 		if err != nil {
 			return "", err
 		}
@@ -118,7 +118,7 @@ func ValueFromString[T any](val string, out T) error {
 			*v = false
 		}
 	default:
-		return json2.Unmarshal([]byte(val), v) //TODO use gob
+		return json.Unmarshal([]byte(val), v) //TODO use gob
 	}
 	return nil
 }
