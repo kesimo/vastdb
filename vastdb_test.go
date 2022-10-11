@@ -9,48 +9,49 @@ import (
 	"time"
 )
 
-type Mock struct {
+type mock struct {
 	Key       string `json:"Key"`
 	Workspace string `json:"Workspace"`
 	Num       int    `json:"Num"`
 }
 
-func testOpen(t testing.TB) *DB[Mock] {
+func testOpen(t testing.TB) *DB[mock] {
 	if err := os.RemoveAll("data.db"); err != nil {
 		t.Fatal(err)
 	}
 	return testReOpen(t, nil)
 }
-func testReOpen(t testing.TB, db *DB[Mock]) *DB[Mock] {
+
+func testReOpen(t testing.TB, db *DB[mock]) *DB[mock] {
 	return testReOpenDelay(t, db, 0)
 }
 
-func testReOpenDelay(t testing.TB, db *DB[Mock], dur time.Duration) *DB[Mock] {
+func testReOpenDelay(t testing.TB, db *DB[mock], dur time.Duration) *DB[mock] {
 	if db != nil {
 		if err := db.Close(); err != nil {
 			t.Fatal(err)
 		}
 	}
 	time.Sleep(dur)
-	db, err := Open("data.db", Mock{})
+	db, err := Open("data.db", mock{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return db
 }
 
-func testClose(db *DB[Mock]) {
+func testClose(db *DB[mock]) {
 	_ = db.Close()
 	_ = os.RemoveAll("data.db")
 }
 
-func TestBackgroudOperations(t *testing.T) {
+func TestDB_BackgroundOperations(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
 	for i := 0; i < 1000; i++ {
-		if err := db.Update(func(tx *Tx[Mock]) error {
+		if err := db.Update(func(tx *Tx[mock]) error {
 			for j := 0; j < 200; j++ {
-				if _, _, err := tx.Set(fmt.Sprintf("hello%d", j), Mock{
+				if _, _, err := tx.Set(fmt.Sprintf("hello%d", j), mock{
 					Key:       "hello" + strconv.Itoa(j),
 					Workspace: "ws2",
 					Num:       50,
@@ -58,7 +59,7 @@ func TestBackgroudOperations(t *testing.T) {
 					return err
 				}
 			}
-			if _, _, err := tx.Set("hi", Mock{
+			if _, _, err := tx.Set("hi", mock{
 				Key:       "hi",
 				Workspace: "ws1",
 				Num:       50,
@@ -71,7 +72,7 @@ func TestBackgroudOperations(t *testing.T) {
 		}
 	}
 	n := 0
-	err := db.View(func(tx *Tx[Mock]) error {
+	err := db.View(func(tx *Tx[mock]) error {
 		var err error
 		n, err = tx.Len()
 		return err
@@ -86,7 +87,7 @@ func TestBackgroudOperations(t *testing.T) {
 	db = testReOpen(t, db)
 	defer testClose(db)
 	n = 0
-	err = db.View(func(tx *Tx[Mock]) error {
+	err = db.View(func(tx *Tx[mock]) error {
 		var err error
 		n, err = tx.Len()
 		return err
@@ -98,12 +99,13 @@ func TestBackgroudOperations(t *testing.T) {
 		t.Fatalf("expecting '%v', got '%v'", 200, n)
 	}
 }
-func TestSaveLoad(t *testing.T) {
-	db, _ := Open(":memory:", Mock{})
+
+func TestDB_SaveLoad(t *testing.T) {
+	db, _ := Open(":memory:", mock{})
 	defer db.Close()
-	if err := db.Update(func(tx *Tx[Mock]) error {
+	if err := db.Update(func(tx *Tx[mock]) error {
 		for i := 0; i < 20; i++ {
-			_, _, err := tx.Set(fmt.Sprintf("Key:%d", i), Mock{
+			_, _, err := tx.Set(fmt.Sprintf("Key:%d", i), mock{
 				Key:       fmt.Sprintf("Key:%d", i),
 				Workspace: "ws1",
 				Num:       50,
@@ -134,7 +136,7 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Close()
-	db, _ = Open(":memory:", Mock{})
+	db, _ = Open(":memory:", mock{})
 	defer db.Close()
 	f, err = os.Open("temp.db")
 	if err != nil {
@@ -144,9 +146,9 @@ func TestSaveLoad(t *testing.T) {
 	if err := db.Load(f); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.View(func(tx *Tx[Mock]) error {
+	if err := db.View(func(tx *Tx[mock]) error {
 		for i := 0; i < 20; i++ {
-			ex := &Mock{
+			ex := &mock{
 				Key:       fmt.Sprintf("Key:%d", i),
 				Workspace: "ws1",
 				Num:       50,
@@ -167,10 +169,51 @@ func TestSaveLoad(t *testing.T) {
 	}
 }
 
+func TestDB_len(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 20; i++ {
+			_, _, err := tx.Set(fmt.Sprintf("Key:%d", i), mock{
+				Key:       fmt.Sprintf("Key:%d", i),
+				Workspace: "ws1",
+				Num:       50,
+			}, nil)
+			if err != nil {
+				t.Errorf("error setting key: %v", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Errorf("error updating db: %v", err)
+	}
+	// test get len by using view
+	n := 0
+	err := db.View(func(tx *Tx[mock]) error {
+		var err error
+		n, err = tx.Len()
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 20 {
+		t.Fatalf("expecting (tx.Len()) '%v', got '%v'", 20, n)
+	}
+	// test get len by using db.Len()
+	n, err = db.Len()
+	if err != nil {
+		t.Errorf("error getting len: %v", err)
+	}
+	if n != 20 {
+		t.Fatalf("expecting (db.Len()) '%v', got '%v'", 20, n)
+	}
+}
+
 func TestMutatingIterator(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
-	idxFn := func(a Mock, b Mock) bool {
+	idxFn := func(a mock, b mock) bool {
 		return a.Num < b.Num
 	}
 	count := 1000
@@ -179,10 +222,10 @@ func TestMutatingIterator(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		if err := db.Update(func(tx *Tx[Mock]) error {
+		if err := db.Update(func(tx *Tx[mock]) error {
 			for j := 0; j < count; j++ {
 				key := fmt.Sprintf("user:%d:age", j)
-				val := Mock{
+				val := mock{
 					Key:       key,
 					Workspace: "ws1",
 					Num:       rand.Intn(100),
@@ -196,13 +239,13 @@ func TestMutatingIterator(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := db.Update(func(tx *Tx[Mock]) error {
-			return tx.Ascend("ages", func(key string, val Mock) bool {
+		if err := db.Update(func(tx *Tx[mock]) error {
+			return tx.Ascend("ages", func(key string, val mock) bool {
 				_, err := tx.Delete(key)
 				if err != ErrTxIterating {
 					t.Fatal("should not be able to call Delete while iterating.")
 				}
-				_, _, err = tx.Set(key, Mock{}, nil)
+				_, _, err = tx.Set(key, mock{}, nil)
 				if err != ErrTxIterating {
 					t.Fatal("should not be able to call Set while iterating.")
 				}
@@ -217,8 +260,8 @@ func TestMutatingIterator(t *testing.T) {
 func TestTx_SetGet(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
-	if err := db.Update(func(tx *Tx[Mock]) error {
-		_, _, err := tx.Set("keee1", Mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		_, _, err := tx.Set("keee1", mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -227,7 +270,7 @@ func TestTx_SetGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := db.View(func(tx *Tx[Mock]) error {
+	if err := db.View(func(tx *Tx[mock]) error {
 		val, err := tx.Get("keee1", true)
 		if err != nil {
 			t.Fatal(err)
@@ -250,8 +293,8 @@ func TestTx_SetGet(t *testing.T) {
 func TestTx_SetGetDelete(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
-	if err := db.Update(func(tx *Tx[Mock]) error {
-		_, _, err := tx.Set("keee1", Mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		_, _, err := tx.Set("keee1", mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +303,7 @@ func TestTx_SetGetDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := db.View(func(tx *Tx[Mock]) error {
+	if err := db.View(func(tx *Tx[mock]) error {
 		val, err := tx.Get("keee1", true)
 		if err != nil {
 			t.Fatal(err)
@@ -279,7 +322,7 @@ func TestTx_SetGetDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := db.Update(func(tx *Tx[Mock]) error {
+	if err := db.Update(func(tx *Tx[mock]) error {
 		_, err := tx.Delete("keee1")
 		if err != nil {
 			t.Fatal(err)
@@ -289,7 +332,7 @@ func TestTx_SetGetDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := db.View(func(tx *Tx[Mock]) error {
+	if err := db.View(func(tx *Tx[mock]) error {
 		_, err := tx.Get("keee1", true)
 		if err != ErrNotFound {
 			t.Fatal(err)
