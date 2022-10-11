@@ -297,7 +297,7 @@ func (db *DB[T]) CreateIndex(name, pattern string,
 }
 
 // ReplaceIndex builds a new index and populates it with items.
-// The items are ordered in an b-tree and can be retrieved using the
+// The items are ordered in a b-tree and can be retrieved using the
 // Ascend* and Descend* methods.
 // If a previous index with the same name exists, that index will be deleted.
 func (db *DB[T]) ReplaceIndex(name, pattern string,
@@ -801,7 +801,7 @@ func (db *DB[T]) readLoad(rd io.Reader, modTime time.Time) (n int64, err error) 
 				dur := (time.Duration(ex) * time.Second) - now.Sub(modTime)
 				if dur > 0 {
 					var valT T
-					if err := ValueFromString(parts[2], &valT); err != nil {
+					if err := valueFromString(parts[2], &valT); err != nil {
 						return totalSize, err
 					}
 					db.insertIntoDatabase(&dbItem[T]{
@@ -815,7 +815,7 @@ func (db *DB[T]) readLoad(rd io.Reader, modTime time.Time) (n int64, err error) 
 				}
 			} else {
 				var valT T
-				if err := ValueFromString(parts[2], &valT); err != nil {
+				if err := valueFromString(parts[2], &valT); err != nil {
 					return totalSize, err
 				}
 				db.insertIntoDatabase(&dbItem[T]{key: parts[1], val: valT})
@@ -966,6 +966,17 @@ func (db *DB[T]) begin(writable bool) (*Tx[T], error) {
 		}
 	}
 	return tx, nil
+}
+
+// Len returns the number of items in the database
+func (db *DB[T]) Len() (int, error) {
+	if db.closed {
+		return 0, ErrDatabaseClosed
+	}
+	if db.keys == nil {
+		return 0, ErrNotFound
+	}
+	return db.keys.Len(), nil
 }
 
 func lessCtx[T any](ctx interface{}) func(a, b *dbItem[T]) bool {

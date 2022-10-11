@@ -44,7 +44,7 @@ func gBtreeDeleteHint[T any](tr *btree.BTreeG[T], key *T) (prev *T) {
 	return &v
 }
 
-func gBtreeGetHint[T any](tr *btree.BTreeG[T], key *T, hint *btree.PathHint) *T {
+func gBtreeGetHint[T any](tr *btree.BTreeG[T], key *T, hint *btree.PathHint) (value *T) {
 	if key == nil {
 		return nil
 	}

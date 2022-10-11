@@ -13,7 +13,7 @@ type dbItemOpts struct {
 }
 
 type dbItem[T any] struct {
-	key     string      // the binary key and value
+	key     string      // the key used for default btree sorting
 	val     T           // generic value
 	opts    *dbItemOpts // optional meta information
 	keyless bool        // keyless item for scanning
@@ -64,8 +64,8 @@ func valueToString[T any](val T) (string, error) {
 	}
 }
 
-// ValueFromString converts a string to a value of the given type.
-func ValueFromString[T any](val string, out T) error {
+// valueFromString converts a string to a value of the given type.
+func valueFromString[T any](val string, out T) error {
 	if val == "" {
 		return nil
 	}
