@@ -149,7 +149,16 @@ func checkNoVisibleFields[T any](a T) error {
 		rt = rt.Elem() // use Elem to get the pointed-to-type
 	}
 	if rt.Kind() != reflect.Struct {
-		return fmt.Errorf("vastdb: invalid type %T", a)
+		if rt.Kind() == reflect.Interface {
+			return fmt.Errorf("vastdb: interface type %s is not supported", rt)
+		}
+		if rt.Name() == "" {
+			return fmt.Errorf("vastdb: %v type is not supported", rt)
+		}
+		if rt.Kind() == reflect.Interface {
+			return fmt.Errorf("vastdb: interface type %s is not supported", rt)
+		}
+		return nil
 	}
 	for _, f := range reflect.VisibleFields(rt) {
 		if f.IsExported() {
@@ -181,7 +190,7 @@ func Open[T any](path string, a T) (*DB[T], error) {
 		AutoShrinkMinSize:    32 * 1024 * 1024,
 	}
 	// turn off persistence for pure in-memory
-	db.persist = path != ":memory:"
+	db.persist = path != ":memory:" && path != ""
 	if db.persist {
 		var err error
 		// hard coding 0666 as the default mode.

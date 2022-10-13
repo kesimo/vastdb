@@ -1,6 +1,8 @@
 package vastdb
 
-import "github.com/tidwall/btree"
+import (
+	"github.com/tidwall/btree"
+)
 
 //// Generic btree wrappers
 func gBLT[T any](tr *btree.BTreeG[T], a, b T) bool { return tr.Less(a, b) }
@@ -74,7 +76,7 @@ func gBtreeAscendLessThan[T any](tr *btree.BTreeG[T], pivot *T,
 	if pivot == nil {
 		return
 	}
-	gAscend(tr, pivot, func(item T) bool {
+	gAscend(tr, nil, func(item T) bool {
 		return gBLT(tr, item, *pivot) && iter(item)
 	})
 }

@@ -1,6 +1,7 @@
 package vastdb
 
 import (
+	"math/rand"
 	"os"
 	"strconv"
 	"testing"
@@ -62,9 +63,9 @@ func BenchmarkTx_Set(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer db.Close()
-	//err = testPrepareIntIndex(db)
-	//err = testPrepareStringIndex(db)
-	//err = testPrepareCombinedIndex(db)
+	err = testPrepareIntIndex(db)
+	err = testPrepareStringIndex(db)
+	err = testPrepareCombinedIndex(db)
 	if err != nil {
 		b.Errorf("failed to create index: %v", err)
 	}
@@ -82,6 +83,38 @@ func BenchmarkTx_Set(b *testing.B) {
 		}); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+func BenchmarkTx_Set_Random(b *testing.B) {
+	db, err := testSetupDb()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iStr := strconv.Itoa(rand.Int())
+		if err := db.Update(func(tx *Tx[mockB]) error {
+			_, _, err := tx.Set("hello"+iStr, mockB{
+				Key:       "hello",
+				Workspace: "ws2",
+				Num:       i,
+				Boolean:   false,
+			}, nil)
+			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	// check length of db
+	len, err := db.Len()
+	if err != nil {
+		b.Fatal(err)
+	}
+	if len != b.N {
+		b.Errorf("expected len %d, got %d", b.N, len)
 	}
 }
 
@@ -144,6 +177,41 @@ func BenchmarkTx_Get(b *testing.B) {
 		if err := db.View(func(tx *Tx[mockB]) error {
 			_, err := tx.Get("hello", true)
 			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkTx_Get_Random(b *testing.B) {
+	db, err := testSetupDb()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := db.Update(func(tx *Tx[mockB]) error {
+		for i := 0; i < 500; i++ {
+			iStr := strconv.Itoa(rand.Int() % 500)
+			_, _, err := tx.Set("hello"+iStr, mockB{
+				Key:       "hello",
+				Workspace: "ws1",
+				Num:       50,
+				Boolean:   false,
+			}, nil)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	}); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := db.View(func(tx *Tx[mockB]) error {
+			_, _ = tx.Get("hello"+strconv.Itoa(i%500), true)
+			return nil
 		}); err != nil {
 			b.Fatal(err)
 		}
