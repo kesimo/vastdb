@@ -118,7 +118,7 @@ func valueFromString[T any](val string, out T) error {
 			*v = false
 		}
 	default:
-		return json.Unmarshal([]byte(val), v) //TODO use gob
+		return json.Unmarshal([]byte(val), &v) //TODO use gob
 	}
 	return nil
 }
