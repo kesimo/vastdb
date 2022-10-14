@@ -108,7 +108,7 @@ func gBtreeDescend[T any](tr *btree.BTreeG[T], iter func(item T) bool) {
 func gBtreeDescendGreaterThan[T any](tr *btree.BTreeG[T], pivot *T,
 	iter func(item T) bool,
 ) {
-	gDescend(tr, pivot, func(item T) bool {
+	gDescend(tr, nil, func(item T) bool {
 		return gBGT(tr, item, *pivot) && iter(item)
 	})
 }
@@ -135,6 +135,5 @@ func gBtreeDescendLessOrEqual[T any](tr *btree.BTreeG[T], pivot *T,
 }
 
 func gBtreeNew[T any](less func(a, b T) bool) *btree.BTreeG[T] {
-	// Using NewNonConcurrent because we're managing our own locks.
 	return btree.NewBTreeGOptions[T](less, btree.Options{NoLocks: true})
 }

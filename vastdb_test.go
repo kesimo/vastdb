@@ -343,6 +343,160 @@ func TestTx_SetGetDelete(t *testing.T) {
 	}
 }
 
+func TestDB_String(t *testing.T) {
+	str := "test"
+	db, err := Open[string](":memory:", str)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	//check length of db
+	len, err := db.Len()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("db len: %d", len)
+
+	if err := db.Update(func(tx *Tx[string]) error {
+		key := fmt.Sprintf("key%d", rand.Int())
+		t.Logf("key: %s", key)
+		_, _, err := tx.Set(key, str, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	//check length of db
+	len, err = db.Len()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len != 1 {
+		t.Fatalf("expecting 11, got %d", len)
+	}
+}
+
+// ASCEND
+
+func TestTx_AscendAll_Struct(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	db.CreateIndex("num", "*", func(a, b mock) bool {
+		return a.Num < b.Num
+	})
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			val := mock{
+				Key:       key,
+				Workspace: "ws1",
+				Num:       i,
+			}
+			if _, _, err := tx.Set(key, val, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.View(func(tx *Tx[mock]) error {
+		var i int
+		tx.AscendKeys("num", func(key string, val mock) bool {
+			if val.Num != i {
+				t.Fatalf("AscendKeys: expecting %d, got %d", i, val.Num)
+			}
+			i++
+			return true
+		})
+		i = 0
+		tx.Ascend("num", func(key string, val mock) bool {
+			if val.Num != i {
+				t.Fatalf("Ascend: expecting %d, got %d", i, val.Num)
+			}
+			i++
+			return true
+		})
+		i = 0
+		tx.AscendGreaterOrEqual("num", PivotKV[mock]{k: "", v: mock{Num: 8}}, func(key string, value mock) bool {
+			if value.Num < 8 {
+				t.Fatalf("AscendGreaterOrEqual: expecting >= 8, got %d", value.Num)
+			}
+			return true
+		})
+		tx.AscendLessThan("int", PivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
+			if value.Num >= 4 {
+				t.Fatalf("AscendLessThan: expecting < 4, got %d", value.Num)
+			}
+			return true
+		})
+		tx.AscendRange("int", PivotKV[mock]{v: mock{Num: 4}}, PivotKV[mock]{v: mock{Num: 8}}, func(key string, value mock) bool {
+			t.Logf("ASCENDRANGE: %s %v", key, value)
+			if value.Num < 4 || value.Num >= 8 {
+				t.Fatalf("AscendRange: expecting >= 4 and < 8, got %d", value.Num)
+			}
+			return true
+		})
+		tx.AscendEqual("int", PivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
+			if value.Num != 4 {
+				t.Fatalf("AscendEqual: expecting 4, got %d", value.Num)
+			}
+			return true
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTx_AscendAll_Int(t *testing.T) {
+	db, err := Open[int64]("", int64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.CreateIndex("int", "*", func(a, b int64) bool {
+		//return a < b
+		return b > a
+	})
+	if err := db.Update(func(tx *Tx[int64]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", rand.Int())
+			_, _, err := tx.Set(key, int64(i), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(func(tx *Tx[int64]) error {
+		tx.Ascend("int", func(key string, value int64) bool {
+			t.Logf("ASCEND: %s %v", key, value)
+			return true
+		})
+		tx.AscendGreaterOrEqual("int", PivotKV[int64]{k: "", v: int64(8)}, func(key string, value int64) bool {
+			t.Logf("ASCENDGE: %s %v", key, value)
+			return true
+		})
+		tx.AscendLessThan("int", PivotKV[int64]{v: 3}, func(key string, value int64) bool {
+			t.Logf("ASCENDLT: %s %v", key, value)
+			return true
+		})
+		tx.AscendRange("int", PivotKV[int64]{v: 4}, PivotKV[int64]{v: 8}, func(key string, value int64) bool {
+			t.Logf("ASCENDRANGE: %s %v", key, value)
+			return true
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTx_AscendKeys(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -497,86 +651,6 @@ func TestTx_AscendGreaterOrEqual(t *testing.T) {
 	}
 }
 
-func TestDB_String(t *testing.T) {
-	str := "test"
-	db, err := Open[string](":memory:", str)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	//check length of db
-	len, err := db.Len()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("db len: %d", len)
-
-	if err := db.Update(func(tx *Tx[string]) error {
-		key := fmt.Sprintf("key%d", rand.Int())
-		t.Logf("key: %s", key)
-		_, _, err := tx.Set(key, str, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	//check length of db
-	len, err = db.Len()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len != 1 {
-		t.Fatalf("expecting 11, got %d", len)
-	}
-}
-
-func TestTx_Ascend_ALL(t *testing.T) {
-	db, err := Open[int64]("", int64(1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.CreateIndex("int", "*", func(a, b int64) bool {
-		//return a < b
-		return b > a
-	})
-	if err := db.Update(func(tx *Tx[int64]) error {
-		for i := 0; i < 10; i++ {
-			key := fmt.Sprintf("key%d", rand.Int())
-			_, _, err := tx.Set(key, int64(i), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.View(func(tx *Tx[int64]) error {
-		tx.Ascend("int", func(key string, value int64) bool {
-			t.Logf("ASCEND: %s %v", key, value)
-			return true
-		})
-		tx.AscendGreaterOrEqual("int", PivotKV[int64]{k: "", v: int64(8)}, func(key string, value int64) bool {
-			t.Logf("ASCENDGE: %s %v", key, value)
-			return true
-		})
-		tx.AscendLessThan("int", PivotKV[int64]{v: 3}, func(key string, value int64) bool {
-			t.Logf("ASCENDLT: %s %v", key, value)
-			return true
-		})
-		tx.AscendRange("int", PivotKV[int64]{v: 4}, PivotKV[int64]{v: 8}, func(key string, value int64) bool {
-			t.Logf("ASCENDRANGE: %s %v", key, value)
-			return true
-		})
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestTx_AscendLessThan(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -657,6 +731,194 @@ func TestTx_AscendRange(t *testing.T) {
 	}
 }
 
+// DESCEND
+
+func TestTx_DescendAll_Struct(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	db.CreateIndex("num", "*", func(a, b mock) bool {
+		return a.Num < b.Num
+	})
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			_, _, err := tx.Set(key, mock{Key: key, Workspace: "wss" + strconv.Itoa(i), Num: i}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(func(tx *Tx[mock]) error {
+		i := 9
+		tx.DescendKeys("key*", func(key string, val mock) bool {
+			numFromKey, _ := strconv.Atoi(key[3:])
+			if numFromKey != i {
+				t.Fatalf("DescendKeys: expecting %d, got %d", i, numFromKey)
+			}
+			i--
+			return true
+		})
+		if i != -1 {
+			t.Fatalf("DescendKeys: expecting 10, got %d", 9-i)
+		}
+		i = 9
+		tx.Descend("num", func(key string, val mock) bool {
+			numFromKey, _ := strconv.Atoi(key[3:])
+			if numFromKey != i {
+				t.Fatalf("Descend: expecting %d, got %d", i, numFromKey)
+			}
+			i--
+			return true
+		})
+		if i != -1 {
+			t.Fatalf("Descend: expecting 10, got %d", 9-i)
+		}
+		i = 0
+		tx.DescendLessOrEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+			if val.Num > 5 {
+				t.Fatalf("DescendLessOrEqual: expecting <= 5, got %d", val.Num)
+			}
+			i++
+			return true
+		})
+		if i != 6 {
+			t.Fatalf("DescendLessOrEqual: expecting 6 results, got %d", i)
+		}
+		i = 0
+		tx.DescendGreaterThan("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+			if val.Num <= 5 {
+				t.Fatalf("DescendGreaterThan: expecting > 5, got %d", val.Num)
+			}
+			i++
+			return true
+		})
+		if i != 4 {
+			t.Fatalf("DescendGreaterThan: expecting 4 results, got %d", i)
+		}
+		i = 0
+		tx.DescendRange("num", PivotKV[mock]{v: mock{Num: 7}}, PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+			if val.Num <= 5 || val.Num > 7 {
+				t.Fatalf("DescendRange: expecting 5 < val <= 7, got %d", val.Num)
+			}
+			i++
+			return true
+		})
+		if i != 2 {
+			t.Fatalf("DescendRange: expecting 2 results, got %d", i)
+		}
+		i = 0
+		tx.DescendEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+			if val.Num != 5 {
+				t.Fatalf("DescendEqual: expecting 5, got %d", val.Num)
+			}
+			i++
+			return true
+		})
+		if i != 1 {
+			t.Fatalf("DescendEqual: expecting 1 result, got %d", i)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTx_DescendAll_Int(t *testing.T) {
+	db, err := Open[int]("", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.CreateIndex("num", "*", func(a, b int) bool {
+		return a < b
+	})
+	if err := db.Update(func(tx *Tx[int]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			_, _, err := tx.Set(key, i, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(func(tx *Tx[int]) error {
+		i := 9
+		tx.DescendKeys("key*", func(key string, val int) bool {
+			numFromKey, _ := strconv.Atoi(key[3:])
+			if numFromKey != i {
+				t.Fatalf("DescendKeys: expecting %d, got %d", i, numFromKey)
+			}
+			i--
+			return true
+		})
+		if i != -1 {
+			t.Fatalf("DescendKeys: expecting 10, got %d", 9-i)
+		}
+		i = 9
+		tx.Descend("num", func(key string, val int) bool {
+			numFromKey, _ := strconv.Atoi(key[3:])
+			if numFromKey != i {
+				t.Fatalf("Descend: expecting %d, got %d", i, numFromKey)
+			}
+			i--
+			return true
+		})
+		if i != -1 {
+			t.Fatalf("Descend: expecting 10, got %d", 9-i)
+		}
+		i = 0
+		tx.DescendLessOrEqual("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+			if val > 5 {
+				t.Fatalf("DescendLessOrEqual: expecting <= 5, got %d", val)
+			}
+			i++
+			return true
+		})
+		if i != 6 {
+			t.Fatalf("DescendLessOrEqual: expecting 6 results, got %d", i)
+		}
+		i = 0
+		tx.DescendGreaterThan("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+			if val <= 5 {
+				t.Fatalf("DescendGreaterThan: expecting > 5, got %d", val)
+			}
+			i++
+			return true
+		})
+		if i != 4 {
+			t.Fatalf("DescendGreaterThan: expecting 4 results, got %d", i)
+		}
+		i = 0
+		tx.DescendRange("num", PivotKV[int]{v: 7}, PivotKV[int]{v: 5}, func(key string, val int) bool {
+			if val <= 5 || val > 7 {
+				t.Fatalf("DescendRange: expecting 5 < val <= 7, got %d", val)
+			}
+			i++
+			return true
+		})
+		if i != 2 {
+			t.Fatalf("DescendRange: expecting 2 results, got %d", i)
+		}
+		i = 0
+		tx.DescendEqual("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+			if val != 5 {
+				t.Fatalf("DescendEqual: expecting 5, got %d", val)
+			}
+			i++
+			return true
+		})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTx_DescendKeys(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -731,6 +993,42 @@ func TestTx_Descend(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTx_DescendLessOrEqual(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	db.CreateIndex("num", "*", func(a, b mock) bool {
+		return a.Num < b.Num
+	})
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			_, _, err := tx.Set(key, mock{Key: key, Workspace: "wss" + strconv.Itoa(i), Num: i}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(func(tx *Tx[mock]) error {
+		i := 0
+		err := tx.DescendLessOrEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+			i++
+			return true
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i != 6 {
+			t.Fatalf("expecting 6, got %d", i)
 		}
 		return nil
 	}); err != nil {
