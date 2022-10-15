@@ -1,9 +1,16 @@
-package vastdb
+package tree
 
 import (
 	"strconv"
 	"testing"
 )
+
+type dbItem[T any] struct {
+	key     string // the key used for default btree sorting
+	val     T      // generic value
+	opts    any    // optional meta information
+	keyless bool   // keyless item for scanning
+}
 
 type mockTestTree struct {
 	Key string
@@ -16,7 +23,7 @@ func testTreeLess(a, b *dbItem[mockTestTree]) bool {
 }
 
 func testCreateGBTree() *GBTree[*dbItem[mockTestTree]] {
-	return newGBtree[*dbItem[mockTestTree]](testTreeLess)
+	return NewGBtree[*dbItem[mockTestTree]](testTreeLess)
 }
 
 func TestGBTree_Set(t *testing.T) {
@@ -83,7 +90,7 @@ func TestGBTree_Get(t *testing.T) {
 	itemGet := &dbItem[mockTestTree]{
 		key: "hello",
 	}
-	fromTree := tree.Get(&itemGet, nil)
+	fromTree, _ := tree.Get(&itemGet, nil)
 	if fromTree == nil {
 		t.Errorf("Item should not be nil")
 	}

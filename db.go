@@ -1,13 +1,14 @@
-// Package vastdb implements a low-level in-memory Key/value store in pure Go.
-// It persists to disk, is ACID compliant, and uses locking for multiple
-// readers and a single writer. Bunt is ideal for projects that need a
-// dependable database, and favor speed over data size.
+// Package vastDB implements a generic in-memory Key/value store
+// It persists to disk, is ACID compliant, has internal RW locking mechanisms,
+// and is optimized for speed and memory usage and supports multi-field indexing for Generic types
+
 package vastdb
 
 import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/kesimo/vastdb/internal/tree"
 	"io"
 	"os"
 	"reflect"
@@ -15,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/tidwall/btree"
 )
 
 var (
@@ -64,19 +63,19 @@ func panicErr(err error) error {
 // DB represents a collection of Key-value pairs that persist on disk.
 // Transactions are used for all forms of data access to the DB.
 type DB[T any] struct {
-	mu        sync.RWMutex              // the gatekeeper for all fields
-	file      *os.File                  // the underlying file
-	buf       []byte                    // a buffer to write to
-	keys      *btree.BTreeG[*dbItem[T]] // a tree of all item ordered by Key
-	exps      *btree.BTreeG[*dbItem[T]] // a tree of items ordered by expiration
-	idxs      map[string]*index[T]      // the index trees.
-	insIdxs   []*index[T]               // a reuse buffer for gathering indexes
-	flushes   int                       // a count of the number of disk flushes
-	closed    bool                      // set when the database has been closed
-	config    Config[T]                 // the database configuration
-	persist   bool                      // do we write to disk
-	shrinking bool                      // when an aof shrink is in-process.
-	lastaofsz int                       // the size of the last shrink aof size
+	mu        sync.RWMutex           // the gatekeeper for all fields
+	file      *os.File               // the underlying file
+	buf       []byte                 // a buffer to write to
+	keys      tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
+	exps      tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
+	idxs      map[string]*index[T]   // the index trees.
+	insIdxs   []*index[T]            // a reuse buffer for gathering indexes
+	flushes   int                    // a count of the number of disk flushes
+	closed    bool                   // set when the database has been closed
+	config    Config[T]              // the database configuration
+	persist   bool                   // do we write to disk
+	shrinking bool                   // when an aof shrink is in-process.
+	lastaofsz int                    // the size of the last shrink aof size
 }
 
 // SyncPolicy represents how often data is synced to disk.
@@ -138,7 +137,7 @@ type exctx[T any] struct {
 
 func checkNoVisibleFields[T any](a T) error {
 	visibleFields := 0
-	rt := reflect.TypeOf(a) // take type of a
+	rt := reflect.TypeOf(a) // take type of input
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem() // use Elem to get the pointed-to-type
 	}
@@ -180,8 +179,8 @@ func Open[T any](path string, a T) (*DB[T], error) {
 	}
 	db := &DB[T]{}
 	// initialize trees and indexes
-	db.keys = gBtreeNew[*dbItem[T]](lessCtx[T](nil))
-	db.exps = gBtreeNew[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
+	db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
+	db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
 	db.idxs = make(map[string]*index[T])
 	// initialize default configuration
 	db.config = Config[T]{
@@ -243,7 +242,7 @@ func (db *DB[T]) Save(wr io.Writer) error {
 	var buf []byte
 	now := time.Now()
 	// iterated through every item in the database and write to the buffer
-	gBtreeAscend[*dbItem[T]](db.keys, func(item *dbItem[T]) bool {
+	db.keys.Ascend(func(item *dbItem[T]) bool {
 		dbi := item
 		buf = dbi.writeSetTo(buf, now)
 		if len(buf) > 1024*1024*4 {
@@ -284,7 +283,7 @@ func (db *DB[T]) Load(rd io.Reader) error {
 }
 
 // CreateIndex builds a new index and populates it with items.
-// The items are ordered in an b-tree and can be retrieved using the
+// The items are ordered in a b-tree and can be retrieved using the
 // Ascend* and Descend* methods.
 // An error will occur if an index with the same name already exists.
 //
@@ -376,6 +375,9 @@ func (db *DB[T]) SetConfig(config Config[T]) error {
 // all indexes. If a previous item with the same Key already exists, that item
 // will be replaced with the new one, and return the previous item.
 func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
+	if item == nil {
+		panic("item cannot be nil")
+	}
 	var pdbi *dbItem[T]
 	// Generate a list of indexes that this item will be inserted in to.
 	idxs := db.insIdxs
@@ -384,31 +386,31 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 			idxs = append(idxs, idx)
 		}
 	}
-	prev := gBtreeSetHint[*dbItem[T]](db.keys, &item, nil)
+	prev, _ := db.keys.Set(&item, nil)
 	if prev != nil {
 		// A previous item was removed from the keys tree. Let's
 		// fully delete this item from all indexes.
 		pdbi = *prev
 		if pdbi.opts != nil && pdbi.opts.ex {
 			// Remove it from the expires tree.
-			gBtreeDeleteHint(db.exps, &pdbi)
+			db.exps.Delete(&pdbi)
 		}
 		for _, idx := range idxs {
 			if idx.btr != nil {
 				// Remove it from the btree index.
-				gBtreeDeleteHint(idx.btr, &pdbi)
+				idx.btr.Delete(&pdbi)
 			}
 		}
 	}
 	if item.opts != nil && item.opts.ex {
 		// The new item has eviction options. Add it to the
 		// expires tree
-		gBtreeSetHint(db.exps, &item, nil)
+		db.exps.Set(&item, nil)
 	}
 	for i, idx := range idxs {
 		if idx.btr != nil {
 			// Add new item to btree index.
-			gBtreeSetHint(idx.btr, &item, nil)
+			idx.btr.Set(&item, nil)
 		}
 		// clear the index
 		idxs[i] = nil
@@ -427,12 +429,12 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 // found in the database
 func (db *DB[T]) deleteFromDatabase(item *dbItem[T]) *dbItem[T] {
 	var pdbi *dbItem[T]
-	prev := gBtreeDeleteHint(db.keys, &item)
+	prev, _ := db.keys.Delete(&item)
 	if prev != nil {
 		pdbi = *prev
 		if pdbi.opts != nil && pdbi.opts.ex {
-			// Remove it from the exipres tree.
-			db.exps.Delete(pdbi)
+			// Remove it from the expires tree.
+			db.exps.Delete(&pdbi)
 		}
 		for _, idx := range db.idxs {
 			if !idx.match(pdbi.key) {
@@ -440,7 +442,7 @@ func (db *DB[T]) deleteFromDatabase(item *dbItem[T]) *dbItem[T] {
 			}
 			if idx.btr != nil {
 				// Remove it from the btree index.
-				gBtreeDeleteHint(idx.btr, &pdbi)
+				idx.btr.Delete(&pdbi)
 			}
 		}
 	}
@@ -478,7 +480,7 @@ func (db *DB[T]) backgroundManager() {
 			}
 			// produce a list of expired items that need removing
 			expItem := &dbItem[T]{opts: &dbItemOpts{ex: true, exat: time.Now()}}
-			gBtreeAscendLessThan(db.exps, &expItem, func(item *dbItem[T]) bool {
+			db.exps.AscendLT(&expItem, func(item *dbItem[T]) bool {
 				expired = append(expired, item)
 				return true
 			})
@@ -595,7 +597,7 @@ func (db *DB[T]) Shrink() error {
 			var n int
 			now := time.Now()
 			pivItem := &dbItem[T]{key: pivot}
-			gBtreeAscendGreaterOrEqual(db.keys, &pivItem,
+			db.keys.AscendGTE(&pivItem,
 				func(item *dbItem[T]) bool {
 					dbi := item
 					// 1000 items or 64MB buffer
@@ -621,11 +623,11 @@ func (db *DB[T]) Shrink() error {
 			return err
 		}
 	}
-	// We reached this far so all of the items have been written to a new tmp
+	// We reached this far so all the items have been written to a new tmp
 	// There's some more work to do by appending the new line from the aof
 	// to the tmp file and finally swap the files out.
 	return func() error {
-		// We're wrapping this in a function to get the benefit of a defered
+		// We're wrapping this in a function to get the benefit of a deferred
 		// lock/unlock.
 		db.mu.Lock()
 		defer db.mu.Unlock()
@@ -643,7 +645,7 @@ func (db *DB[T]) Shrink() error {
 		if _, err := aof.Seek(endPosition, 0); err != nil {
 			return err
 		}
-		// Just copy all of the new commands that have occurred since we
+		// Just copy all the new commands that have occurred since we
 		// started the shrink process.
 		if _, err := io.Copy(f, aof); err != nil {
 			return err
@@ -839,8 +841,8 @@ func (db *DB[T]) readLoad(rd io.Reader, modTime time.Time) (n int64, err error) 
 			db.deleteFromDatabase(&dbItem[T]{key: parts[1]})
 		} else if (parts[0][0] == 'f' || parts[0][0] == 'F') &&
 			strings.ToLower(parts[0]) == "flushdb" {
-			db.keys = gBtreeNew[*dbItem[T]](lessCtx[T](nil))
-			db.exps = gBtreeNew[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
+			db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
+			db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
 			db.idxs = make(map[string]*index[T])
 		} else {
 			return totalSize, ErrInvalid
@@ -849,7 +851,7 @@ func (db *DB[T]) readLoad(rd io.Reader, modTime time.Time) (n int64, err error) 
 	}
 }
 
-// load reads entries from the append only database file and fills the database.
+// load reads entries from the append-only database file and fills the database.
 // The file format uses the Redis append only file format, which is and a series
 // of RESP commands. For more information on RESP please read
 // http://redis.io/topics/protocol. The only supported RESP commands are DEL and
@@ -876,7 +878,7 @@ func (db *DB[T]) load() error {
 		return err
 	}
 	var estaofsz int
-	gBtreeWalk(db.keys, func(items []*dbItem[T]) {
+	db.keys.Walk(func(items []*dbItem[T]) {
 		for _, v := range items {
 			estaofsz += v.estAOFSetSize()
 		}
@@ -940,7 +942,7 @@ func (db *DB[T]) Update(fn func(tx *Tx[T]) error) error {
 // get return an item or nil if not found.
 func (db *DB[T]) get(key string) *dbItem[T] {
 	keyItem := &dbItem[T]{key: key}
-	item := gBtreeGetHint[*dbItem[T]](db.keys, &keyItem, nil)
+	item, _ := db.keys.Get(&keyItem, nil)
 	if item != nil {
 		return *item
 	}

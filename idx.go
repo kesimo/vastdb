@@ -1,7 +1,7 @@
 package vastdb
 
 import (
-	"github.com/tidwall/btree"
+	"github.com/kesimo/vastdb/internal/tree"
 	"github.com/tidwall/match"
 	"strings"
 )
@@ -17,12 +17,12 @@ type IndexOptions struct {
 // index represents a b-tree or r-tree index and also acts as the
 // b-tree/r-tree context for itself.
 type index[T any] struct {
-	btr     *btree.BTreeG[*dbItem[T]] // contains the items
-	name    string                    // name of the index
-	pattern string                    // a required Key pattern
-	less    func(a, b T) bool         // less comparison function
-	db      *DB[T]                    // the origin database
-	opts    IndexOptions              // index options
+	btr     tree.Btree[*dbItem[T]] // contains the items
+	name    string                 // name of the index
+	pattern string                 // a required Key pattern
+	less    func(a, b T) bool      // less comparison function
+	db      *DB[T]                 // the origin database
+	opts    IndexOptions           // index options
 }
 
 // match the pattern to the Key
@@ -53,7 +53,7 @@ func (idx *index[T]) clearCopy() *index[T] {
 	}
 	// initialize with empty trees todo check if something is missing here, e.g use == instead
 	if nidx.less != nil {
-		nidx.btr = gBtreeNew[*dbItem[T]](lessCtx[T](nil))
+		nidx.btr = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
 	}
 	return nidx
 }
@@ -62,17 +62,17 @@ func (idx *index[T]) clearCopy() *index[T] {
 func (idx *index[T]) rebuild() {
 	// initialize trees todo check if something is missing here, e.g use own less function
 	if idx.less != nil {
-		idx.btr = btree.NewBTreeG[*dbItem[T]](lessCtx[T](idx))
+		idx.btr = tree.NewGBtree[*dbItem[T]](lessCtx[T](idx))
 	}
 	// iterate through all keys and fill the index
-	gBtreeAscend(idx.db.keys, func(item *dbItem[T]) bool {
+	idx.db.keys.Ascend(func(item *dbItem[T]) bool {
 		dbi := item
 		if !idx.match(dbi.key) {
 			// continue if pattern doesn't match
 			return true
 		}
 		if idx.less != nil {
-			gBtreeSetHint(idx.btr, &dbi, nil)
+			idx.btr.Set(&dbi, nil)
 		}
 		return true
 	})

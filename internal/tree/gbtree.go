@@ -1,4 +1,4 @@
-package vastdb
+package tree
 
 import (
 	"errors"
@@ -17,7 +17,7 @@ type GBTree[T any] struct {
 	tr *btree.BTreeG[T]
 }
 
-func newGBtree[T any](less func(a, b T) bool) *GBTree[T] {
+func NewGBtree[T any](less func(a, b T) bool) *GBTree[T] {
 	return &GBTree[T]{tr: btree.NewBTreeGOptions[T](less, btree.Options{NoLocks: true})}
 }
 
@@ -41,11 +41,18 @@ func (gbt *GBTree[T]) descend(pivot *T, iter func(item T) bool) {
 }
 
 // Set sets the item in the tree. If the item already exists, it will be replaced.
-func (gbt *GBTree[T]) Set(item *T, hint *btree.PathHint) (prev *T, err error) {
+func (gbt *GBTree[T]) Set(item *T, hint any) (prev *T, err error) {
 	if item == nil {
 		return nil, ErrItemNil
 	}
-	v, ok := gbt.tr.SetHint(*item, hint)
+	var hintConverted *btree.PathHint
+	if hint == nil {
+		hintConverted = nil
+	} else {
+		hintConverted = hint.(*btree.PathHint)
+	}
+
+	v, ok := gbt.tr.SetHint(*item, hintConverted)
 	if !ok {
 		return nil, nil
 	}
@@ -67,15 +74,21 @@ func (gbt *GBTree[T]) Delete(key *T) (prev *T, err error) {
 }
 
 // Get gets the item from the tree by key. If the item does not exist, it will return nil.
-func (gbt *GBTree[T]) Get(key *T, hint *btree.PathHint) (value *T) {
+func (gbt *GBTree[T]) Get(key *T, hint any) (value *T, ok bool) {
 	if key == nil {
-		return nil
+		return nil, false
 	}
-	v, ok := gbt.tr.GetHint(*key, hint)
+	var hintConverted *btree.PathHint
+	if hint == nil {
+		hintConverted = nil
+	} else {
+		hintConverted = hint.(*btree.PathHint)
+	}
+	v, ok := gbt.tr.GetHint(*key, hintConverted)
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return &v
+	return &v, true
 }
 
 // Walk iterates over all items in the tree by the initial defined order.
@@ -166,19 +179,19 @@ func (gbt *GBTree[T]) Len() int {
 }
 
 // Min returns the minimum item in the tree.
-func (gbt *GBTree[T]) Min() *T {
+func (gbt *GBTree[T]) Min() (item *T, ok bool) {
 	v, ok := gbt.tr.Min()
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return &v
+	return &v, true
 }
 
 // Max returns the maximum item in the tree.
-func (gbt *GBTree[T]) Max() *T {
+func (gbt *GBTree[T]) Max() (item *T, ok bool) {
 	v, ok := gbt.tr.Max()
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return &v
+	return &v, true
 }

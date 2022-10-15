@@ -1,7 +1,7 @@
 package vastdb
 
 import (
-	"github.com/tidwall/btree"
+	"github.com/kesimo/vastdb/internal/tree"
 	"github.com/tidwall/match"
 	"sort"
 	"strings"
@@ -23,13 +23,13 @@ type Tx[T any] struct {
 
 type txWriteContext[T any] struct {
 	// rollback when deleteAll is called
-	rbkeys          *btree.BTreeG[*dbItem[T]] // a tree of all item ordered by Key
-	rbexps          *btree.BTreeG[*dbItem[T]] // a tree of items ordered by expiration
-	rbidxs          map[string]*index[T]      // the index trees.
-	rollbackItems   map[string]*dbItem[T]     // details for rolling back tx.
-	commitItems     map[string]*dbItem[T]     // details for committing tx.
-	itercount       int                       // stack of iterators
-	rollbackIndexes map[string]*index[T]      // details for dropped indexes.
+	rbKeys          tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
+	rbExps          tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
+	rbIdxs          map[string]*index[T]   // the index trees.
+	rollbackItems   map[string]*dbItem[T]  // details for rolling back tx.
+	commitItems     map[string]*dbItem[T]  // details for committing tx.
+	iterCount       int                    // stack of iterators
+	rollbackIndexes map[string]*index[T]   // details for dropped indexes.
 }
 
 // DeleteAll deletes all items from the database.
@@ -38,24 +38,24 @@ func (tx *Tx[T]) DeleteAll() error {
 		return ErrTxClosed
 	} else if !tx.writable {
 		return ErrTxNotWritable
-	} else if tx.wc.itercount > 0 {
+	} else if tx.wc.iterCount > 0 {
 		return ErrTxIterating
 	}
 
 	// check to see if we've already deleted everything
-	if tx.wc.rbkeys == nil {
+	if tx.wc.rbKeys == nil {
 		// backup the live data for rollback
-		tx.wc.rbkeys = tx.db.keys
-		tx.wc.rbexps = tx.db.exps
-		tx.wc.rbidxs = tx.db.idxs
+		tx.wc.rbKeys = tx.db.keys
+		tx.wc.rbExps = tx.db.exps
+		tx.wc.rbIdxs = tx.db.idxs
 	}
 
 	// now reset the live database trees
-	tx.db.keys = gBtreeNew[*dbItem[T]](lessCtx[T](nil))
-	tx.db.exps = gBtreeNew[*dbItem[T]](lessCtx[T](&exctx[T]{tx.db}))
+	tx.db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
+	tx.db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{tx.db}))
 	tx.db.idxs = make(map[string]*index[T])
 	// finally re-create the indexes
-	for name, idx := range tx.wc.rbidxs {
+	for name, idx := range tx.wc.rbIdxs {
 		tx.db.idxs[name] = idx.clearCopy()
 	}
 	// always clear out the commits
@@ -85,10 +85,10 @@ func (tx *Tx[T]) unlock() {
 // Intended to be called from Commit() and Rollback().
 func (tx *Tx[T]) rollbackInner() {
 	// rollback the deleteAll if needed
-	if tx.wc.rbkeys != nil {
-		tx.db.keys = tx.wc.rbkeys
-		tx.db.idxs = tx.wc.rbidxs
-		tx.db.exps = tx.wc.rbexps
+	if tx.wc.rbKeys != nil {
+		tx.db.keys = tx.wc.rbKeys
+		tx.db.idxs = tx.wc.rbIdxs
+		tx.db.exps = tx.wc.rbExps
 	}
 	for key, item := range tx.wc.rollbackItems {
 		tx.db.deleteFromDatabase(&dbItem[T]{key: key})
@@ -123,10 +123,10 @@ func (tx *Tx[T]) Commit() error {
 		return ErrTxNotWritable
 	}
 	var err error
-	if tx.db.persist && (len(tx.wc.commitItems) > 0 || tx.wc.rbkeys != nil) {
+	if tx.db.persist && (len(tx.wc.commitItems) > 0 || tx.wc.rbKeys != nil) {
 		tx.db.buf = tx.db.buf[:0]
 		// write a flushdb if a deleteAll was called.
-		if tx.wc.rbkeys != nil {
+		if tx.wc.rbKeys != nil {
 			tx.db.buf = append(tx.db.buf, "*1\r\n$7\r\nflushdb\r\n"...)
 		}
 		now := time.Now()
@@ -239,7 +239,7 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
 		return nil, false, ErrTxClosed
 	} else if !tx.writable {
 		return nil, false, ErrTxNotWritable
-	} else if tx.wc.itercount > 0 {
+	} else if tx.wc.iterCount > 0 {
 		return nil, false, ErrTxIterating
 	}
 	item := &dbItem[T]{key: key, val: value}
@@ -254,7 +254,7 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
 	prev := tx.db.insertIntoDatabase(item)
 
 	// insert into the rollback map if there has not been a deleteAll.
-	if tx.wc.rbkeys == nil {
+	if tx.wc.rbKeys == nil {
 		if prev == nil {
 			// An item with the same Key did not previously exist. Let's
 			// create a rollback entry with a nil value. A nil value indicates
@@ -315,7 +315,7 @@ func (tx *Tx[T]) Delete(key string) (val *T, err error) {
 		return nil, ErrTxClosed
 	} else if !tx.writable {
 		return nil, ErrTxNotWritable
-	} else if tx.wc.itercount > 0 {
+	} else if tx.wc.iterCount > 0 {
 		return nil, ErrTxIterating
 	}
 	item := tx.db.deleteFromDatabase(&dbItem[T]{key: key})
@@ -323,7 +323,7 @@ func (tx *Tx[T]) Delete(key string) (val *T, err error) {
 		return nil, ErrNotFound
 	}
 	// create a rollback entry if there has not been a deleteAll call.
-	if tx.wc.rbkeys == nil {
+	if tx.wc.rbKeys == nil {
 		if _, ok := tx.wc.rollbackItems[key]; !ok {
 			tx.wc.rollbackItems[key] = item
 		}
@@ -387,7 +387,7 @@ func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop Pi
 		dbi := item
 		return iterator(dbi.key, dbi.val)
 	}
-	var tr *btree.BTreeG[*dbItem[T]]
+	var tr tree.Btree[*dbItem[T]]
 	if index == "" {
 		// empty index means we will use the keys tree.
 		tr = tx.db.keys
@@ -421,34 +421,34 @@ func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop Pi
 	}
 	// execute the scan on the underlying tree.
 	if tx.wc != nil {
-		tx.wc.itercount++
+		tx.wc.iterCount++
 		defer func() {
-			tx.wc.itercount--
+			tx.wc.iterCount--
 		}()
 	}
 	if desc {
 		if gt {
 			if lt {
-				gBtreeDescendRange(tr, &itemA, &itemB, iter)
+				tr.DescendRange(&itemA, &itemB, iter)
 			} else {
-				gBtreeDescendGreaterThan(tr, &itemA, iter)
+				tr.DescendGT(&itemA, iter)
 			}
 		} else if lt {
-			gBtreeDescendLessOrEqual(tr, &itemA, iter)
+			tr.DescendLTE(&itemA, iter)
 		} else {
-			gBtreeDescend(tr, iter)
+			tr.Descend(iter)
 		}
 	} else {
 		if gt {
 			if lt {
-				gBtreeAscendRange(tr, &itemA, &itemB, iter)
+				tr.AscendRange(&itemA, &itemB, iter)
 			} else {
-				gBtreeAscendGreaterOrEqual(tr, &itemA, iter)
+				tr.AscendGTE(&itemA, iter)
 			}
 		} else if lt {
-			gBtreeAscendLessThan(tr, &itemA, iter)
+			tr.AscendLT(&itemA, iter)
 		} else {
-			gBtreeAscend(tr, iter)
+			tr.Ascend(iter)
 		}
 	}
 	return nil
@@ -715,7 +715,7 @@ func (tx *Tx[T]) createIndex(name string, pattern string,
 		return ErrTxClosed
 	} else if !tx.writable {
 		return ErrTxNotWritable
-	} else if tx.wc.itercount > 0 {
+	} else if tx.wc.iterCount > 0 {
 		return ErrTxIterating
 	}
 	if name == "" {
@@ -749,7 +749,7 @@ func (tx *Tx[T]) createIndex(name string, pattern string,
 	idx.rebuild()
 	// save the index
 	tx.db.idxs[name] = idx
-	if tx.wc.rbkeys == nil {
+	if tx.wc.rbKeys == nil {
 		// store the index in the rollback map.
 		if _, ok := tx.wc.rollbackIndexes[name]; !ok {
 			// we use nil to indicate that the index should be removed upon
@@ -766,7 +766,7 @@ func (tx *Tx[T]) DropIndex(name string) error {
 		return ErrTxClosed
 	} else if !tx.writable {
 		return ErrTxNotWritable
-	} else if tx.wc.itercount > 0 {
+	} else if tx.wc.iterCount > 0 {
 		return ErrTxIterating
 	}
 	if name == "" {
@@ -780,7 +780,7 @@ func (tx *Tx[T]) DropIndex(name string) error {
 	// delete from the map.
 	// this is all that is needed to delete an index.
 	delete(tx.db.idxs, name)
-	if tx.wc.rbkeys == nil {
+	if tx.wc.rbKeys == nil {
 		// store the index in the rollback map.
 		if _, ok := tx.wc.rollbackIndexes[name]; !ok {
 			// we use a non-nil copy of the index without the data to indicate
