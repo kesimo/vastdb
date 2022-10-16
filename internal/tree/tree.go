@@ -1,9 +1,9 @@
 package tree
 
 type Btree[T any] interface {
-	Set(item *T, hint any) (prev *T, err error)
+	Set(item *T) (prev *T, err error)
 	Delete(key *T) (prev *T, err error)
-	Get(key *T, hint any) (value *T, ok bool)
+	Get(key *T) (value *T, ok bool)
 	Walk(iter func(items []T))
 	Ascend(iter func(item T) bool)
 	AscendLT(lt *T, iter func(item T) bool)

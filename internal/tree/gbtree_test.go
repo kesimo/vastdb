@@ -48,7 +48,7 @@ func TestGBTree_Set(t *testing.T) {
 		},
 		opts: nil,
 	}
-	prev, err := tree.Set(&item, nil)
+	prev, err := tree.Set(&item)
 	if err != nil {
 		t.Errorf("Error setting item: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestGBTree_Set(t *testing.T) {
 		t.Errorf("Previous item should be nil")
 	}
 	//set nil item
-	prev, err = tree.Set(nil, nil)
+	prev, err = tree.Set(nil)
 	if err == nil {
 		t.Errorf("Error setting nil item should not be nil")
 	}
@@ -73,7 +73,7 @@ func TestGBTree_Set(t *testing.T) {
 		},
 		opts: nil,
 	}
-	prev, err = tree.Set(&item, nil)
+	prev, err = tree.Set(&item)
 	if err != nil {
 		t.Errorf("Error setting item: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestGBTree_Len(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	if tree.Len() != 10 {
 		t.Errorf("Tree should have 10 items, got %v", tree.Len())
@@ -120,7 +120,7 @@ func TestGBTree_Get(t *testing.T) {
 		},
 		opts: nil,
 	}
-	prev, err := tree.Set(&item, nil)
+	prev, err := tree.Set(&item)
 	if err != nil {
 		t.Errorf("Error setting item: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestGBTree_Get(t *testing.T) {
 	itemGet := &dbItem[mockTestTree]{
 		key: "hello",
 	}
-	fromTree, _ := tree.Get(&itemGet, nil)
+	fromTree, _ := tree.Get(&itemGet)
 	if fromTree == nil {
 		t.Errorf("Item should not be nil")
 	}
@@ -142,7 +142,7 @@ func TestGBTree_Get(t *testing.T) {
 		t.Errorf("Item values should be equal")
 	}
 	//test get for nil item
-	missing, ok := tree.Get(nil, nil)
+	missing, ok := tree.Get(nil)
 	if ok {
 		t.Errorf("should not be okay, if key for Get is nil")
 	}
@@ -151,7 +151,7 @@ func TestGBTree_Get(t *testing.T) {
 	}
 	//test get for item not stored
 	itemNotStored := &dbItem[mockTestTree]{key: "notAvailable"}
-	notStored, ok := tree.Get(&itemNotStored, nil)
+	notStored, ok := tree.Get(&itemNotStored)
 	if ok {
 		t.Errorf("should no be okay if no item for key found")
 	}
@@ -171,7 +171,7 @@ func TestGBTree_Delete(t *testing.T) {
 			sec: 15,
 		},
 	}
-	_, err := tree.Set(&item, nil)
+	_, err := tree.Set(&item)
 	if err != nil {
 		t.Errorf("Error setting item: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestGBTree_Walk(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	tree.Walk(func(items []*dbItem[mockTestTree]) {
 		for idx, item := range items {
@@ -254,7 +254,7 @@ func TestGBTree_Ascend(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	curr := 0
 	tree.Ascend(func(item *dbItem[mockTestTree]) bool {
@@ -283,7 +283,7 @@ func TestGBTree_AscendLT(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	lt := &dbItem[mockTestTree]{
 		key: "hello5",
@@ -320,7 +320,7 @@ func TestGBTree_AscendGTE(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	gte := &dbItem[mockTestTree]{
 		key: "hello5",
@@ -361,7 +361,7 @@ func TestGBTree_AscendRange(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	lt := &dbItem[mockTestTree]{
 		key: "hello9",
@@ -435,7 +435,7 @@ func TestGBTree_Descend(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	curr := 9
 	tree.Descend(func(item *dbItem[mockTestTree]) bool {
@@ -464,7 +464,7 @@ func TestGBTree_DescendGT(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	gt := &dbItem[mockTestTree]{
 		key: "hello5",
@@ -505,7 +505,7 @@ func TestGBTree_DescendLTE(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	lte := &dbItem[mockTestTree]{
 		key: "hello5",
@@ -542,7 +542,7 @@ func TestGBTree_DescendRange(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	lte := &dbItem[mockTestTree]{
 		key: "hello9",
@@ -610,7 +610,7 @@ func TestGBTree_Max(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	max, ok := tree.Max()
 	if !ok {
@@ -618,6 +618,12 @@ func TestGBTree_Max(t *testing.T) {
 	}
 	if (*max).key != "hello9" {
 		t.Errorf("wrong max item")
+	}
+	// test with empty tree
+	emptyTree := testCreateGBTree()
+	_, ok = emptyTree.Max()
+	if ok {
+		t.Errorf("should return false when tree is empty")
 	}
 }
 
@@ -633,7 +639,7 @@ func TestGBTree_Min(t *testing.T) {
 			},
 			opts: nil,
 		}
-		tree.Set(&item, nil)
+		tree.Set(&item)
 	}
 	min, ok := tree.Min()
 	if !ok {
@@ -641,5 +647,11 @@ func TestGBTree_Min(t *testing.T) {
 	}
 	if (*min).key != "hello0" {
 		t.Errorf("wrong max item")
+	}
+	// test with empty tree
+	emptyTree := testCreateGBTree()
+	_, ok = emptyTree.Min()
+	if ok {
+		t.Errorf("should return false when tree is empty")
 	}
 }

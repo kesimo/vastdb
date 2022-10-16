@@ -47,18 +47,11 @@ func (gbt *GBTree[T]) descend(pivot *T, iter func(item T) bool) {
 }
 
 // Set sets the item in the tree. If the item already exists, it will be replaced.
-func (gbt *GBTree[T]) Set(item *T, hint any) (prev *T, err error) {
+func (gbt *GBTree[T]) Set(item *T) (prev *T, err error) {
 	if item == nil {
 		return nil, ErrItemNil
 	}
-	var hintConverted *btree.PathHint
-	if hint == nil {
-		hintConverted = nil
-	} else {
-		hintConverted = hint.(*btree.PathHint)
-	}
-
-	v, ok := gbt.tr.SetHint(*item, hintConverted)
+	v, ok := gbt.tr.SetHint(*item, nil)
 	if !ok {
 		return nil, nil
 	}
@@ -79,17 +72,11 @@ func (gbt *GBTree[T]) Delete(key *T) (prev *T, err error) {
 }
 
 // Get gets the item from the tree by key. If the item does not exist, it will return nil.
-func (gbt *GBTree[T]) Get(key *T, hint any) (value *T, ok bool) {
+func (gbt *GBTree[T]) Get(key *T) (value *T, ok bool) {
 	if key == nil {
 		return nil, false
 	}
-	var hintConverted *btree.PathHint
-	if hint == nil {
-		hintConverted = nil
-	} else {
-		hintConverted = hint.(*btree.PathHint)
-	}
-	v, ok := gbt.tr.GetHint(*key, hintConverted)
+	v, ok := gbt.tr.GetHint(*key, nil)
 	if !ok {
 		return nil, false
 	}

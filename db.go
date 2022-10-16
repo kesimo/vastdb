@@ -393,9 +393,9 @@ func (db *DB[T]) SetConfig(config Config[T]) error {
 	return nil
 }
 
-// insertIntoDatabase performs inserts an item in to the database and updates
-// all indexes. If a previous item with the same Key already exists, that item
-// will be replaced with the new one, and return the previous item.
+// insertIntoDatabase inserts an item into the main tree (optional in expire tree) and update every index.
+// if an item with same key already exists it will be replaced (using the dbItem.key value to compare)
+// and the old item will be returned.
 func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 	if item == nil {
 		panic("item cannot be nil")
@@ -408,7 +408,7 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 			idxs = append(idxs, idx)
 		}
 	}
-	prev, _ := db.keys.Set(&item, nil)
+	prev, _ := db.keys.Set(&item)
 	if prev != nil {
 		// A previous item was removed from the keys tree. Let's
 		// fully delete this item from all indexes.
@@ -427,12 +427,12 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 	if item.opts != nil && item.opts.ex {
 		// The new item has eviction options. Add it to the
 		// expires tree
-		db.exps.Set(&item, nil)
+		db.exps.Set(&item)
 	}
 	for i, idx := range idxs {
 		if idx.btr != nil {
 			// Add new item to btree index.
-			idx.btr.Set(&item, nil)
+			idx.btr.Set(&item)
 		}
 		// clear the index
 		idxs[i] = nil
@@ -443,12 +443,10 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 	return pdbi
 }
 
-// deleteFromDatabase removes and item from the database and indexes. The input
-// item must only have the Key field specified thus "&dbItem{Key: Key}" is all
-// that is needed to fully remove the item with the matching Key. If an item
-// with the matching Key was found in the database, it will be removed and
-// returned to the caller. A nil return value means that the item was not
-// found in the database
+// deleteFromDatabase removes an item from the keys and exps trees and every index. The input
+// item must only have the Key field specified "&dbItem{Key: Key}".
+// if item found it deletes the item and returns it
+// if item not found it returns nil
 func (db *DB[T]) deleteFromDatabase(item *dbItem[T]) *dbItem[T] {
 	var pdbi *dbItem[T]
 	prev, _ := db.keys.Delete(&item)
@@ -964,7 +962,7 @@ func (db *DB[T]) Update(fn func(tx *Tx[T]) error) error {
 // get return an item or nil if not found.
 func (db *DB[T]) get(key string) *dbItem[T] {
 	keyItem := &dbItem[T]{key: key}
-	item, _ := db.keys.Get(&keyItem, nil)
+	item, _ := db.keys.Get(&keyItem)
 	if item != nil {
 		return *item
 	}
