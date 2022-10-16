@@ -421,26 +421,26 @@ func TestTx_AscendAll_Struct(t *testing.T) {
 			return true
 		})
 		i = 0
-		tx.AscendGreaterOrEqual("num", PivotKV[mock]{k: "", v: mock{Num: 8}}, func(key string, value mock) bool {
+		tx.AscendGreaterOrEqual("num", pivotKV[mock]{k: "", v: mock{Num: 8}}, func(key string, value mock) bool {
 			if value.Num < 8 {
 				t.Fatalf("AscendGreaterOrEqual: expecting >= 8, got %d", value.Num)
 			}
 			return true
 		})
-		tx.AscendLessThan("int", PivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
+		tx.AscendLessThan("int", pivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
 			if value.Num >= 4 {
 				t.Fatalf("AscendLessThan: expecting < 4, got %d", value.Num)
 			}
 			return true
 		})
-		tx.AscendRange("int", PivotKV[mock]{v: mock{Num: 4}}, PivotKV[mock]{v: mock{Num: 8}}, func(key string, value mock) bool {
+		tx.AscendRange("int", pivotKV[mock]{v: mock{Num: 4}}, pivotKV[mock]{v: mock{Num: 8}}, func(key string, value mock) bool {
 			t.Logf("ASCENDRANGE: %s %v", key, value)
 			if value.Num < 4 || value.Num >= 8 {
 				t.Fatalf("AscendRange: expecting >= 4 and < 8, got %d", value.Num)
 			}
 			return true
 		})
-		tx.AscendEqual("int", PivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
+		tx.AscendEqual("int", pivotKV[mock]{v: mock{Num: 4}}, func(key string, value mock) bool {
 			if value.Num != 4 {
 				t.Fatalf("AscendEqual: expecting 4, got %d", value.Num)
 			}
@@ -479,15 +479,15 @@ func TestTx_AscendAll_Int(t *testing.T) {
 			t.Logf("ASCEND: %s %v", key, value)
 			return true
 		})
-		tx.AscendGreaterOrEqual("int", PivotKV[int64]{k: "", v: int64(8)}, func(key string, value int64) bool {
+		tx.AscendGreaterOrEqual("int", pivotKV[int64]{k: "", v: int64(8)}, func(key string, value int64) bool {
 			t.Logf("ASCENDGE: %s %v", key, value)
 			return true
 		})
-		tx.AscendLessThan("int", PivotKV[int64]{v: 3}, func(key string, value int64) bool {
+		tx.AscendLessThan("int", pivotKV[int64]{v: 3}, func(key string, value int64) bool {
 			t.Logf("ASCENDLT: %s %v", key, value)
 			return true
 		})
-		tx.AscendRange("int", PivotKV[int64]{v: 4}, PivotKV[int64]{v: 8}, func(key string, value int64) bool {
+		tx.AscendRange("int", pivotKV[int64]{v: 4}, pivotKV[int64]{v: 8}, func(key string, value int64) bool {
 			t.Logf("ASCENDRANGE: %s %v", key, value)
 			return true
 		})
@@ -591,7 +591,7 @@ func TestTx_AscendEqual(t *testing.T) {
 
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
-		err := tx.AscendEqual("workspace", PivotKV[mock]{k: "", v: mock{Workspace: "wss5"}}, func(key string, val mock) bool {
+		err := tx.AscendEqual("workspace", pivotKV[mock]{k: "", v: mock{Workspace: "wss5"}}, func(key string, val mock) bool {
 			t.Logf("key: %s, val: %+v", key, val)
 			if val.Workspace != "wss5" {
 				t.Fatalf("expecting 'wss5', got '%v'", val.Workspace)
@@ -635,7 +635,7 @@ func TestTx_AscendGreaterOrEqual(t *testing.T) {
 
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
-		err := tx.AscendGreaterOrEqual("workspace", PivotKV[mock]{k: "", v: mock{Workspace: "wss10"}}, func(key string, val mock) bool {
+		err := tx.AscendGreaterOrEqual("workspace", pivotKV[mock]{k: "", v: mock{Workspace: "wss10"}}, func(key string, val mock) bool {
 			i++
 			return true
 		})
@@ -671,7 +671,7 @@ func TestTx_AscendLessThan(t *testing.T) {
 	}
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
-		err := tx.AscendLessThan("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		err := tx.AscendLessThan("num", pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			i++
 			return true
 		})
@@ -714,7 +714,7 @@ func TestTx_AscendRange(t *testing.T) {
 
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
-		err := tx.AscendRange("num", PivotKV[mock]{v: mock{Num: 5}}, PivotKV[mock]{v: mock{Num: 7}}, func(key string, val mock) bool {
+		err := tx.AscendRange("num", pivotKV[mock]{v: mock{Num: 5}}, pivotKV[mock]{v: mock{Num: 7}}, func(key string, val mock) bool {
 			t.Logf("key: %s, val: %+v", key, val)
 			i++
 			return true
@@ -777,7 +777,7 @@ func TestTx_DescendAll_Struct(t *testing.T) {
 			t.Fatalf("Descend: expecting 10, got %d", 9-i)
 		}
 		i = 0
-		tx.DescendLessOrEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		tx.DescendLessOrEqual("num", pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			if val.Num > 5 {
 				t.Fatalf("DescendLessOrEqual: expecting <= 5, got %d", val.Num)
 			}
@@ -788,7 +788,7 @@ func TestTx_DescendAll_Struct(t *testing.T) {
 			t.Fatalf("DescendLessOrEqual: expecting 6 results, got %d", i)
 		}
 		i = 0
-		tx.DescendGreaterThan("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		tx.DescendGreaterThan("num", pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			if val.Num <= 5 {
 				t.Fatalf("DescendGreaterThan: expecting > 5, got %d", val.Num)
 			}
@@ -799,7 +799,7 @@ func TestTx_DescendAll_Struct(t *testing.T) {
 			t.Fatalf("DescendGreaterThan: expecting 4 results, got %d", i)
 		}
 		i = 0
-		tx.DescendRange("num", PivotKV[mock]{v: mock{Num: 7}}, PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		tx.DescendRange("num", pivotKV[mock]{v: mock{Num: 7}}, pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			if val.Num <= 5 || val.Num > 7 {
 				t.Fatalf("DescendRange: expecting 5 < val <= 7, got %d", val.Num)
 			}
@@ -810,7 +810,7 @@ func TestTx_DescendAll_Struct(t *testing.T) {
 			t.Fatalf("DescendRange: expecting 2 results, got %d", i)
 		}
 		i = 0
-		tx.DescendEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		tx.DescendEqual("num", pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			if val.Num != 5 {
 				t.Fatalf("DescendEqual: expecting 5, got %d", val.Num)
 			}
@@ -873,7 +873,7 @@ func TestTx_DescendAll_Int(t *testing.T) {
 			t.Fatalf("Descend: expecting 10, got %d", 9-i)
 		}
 		i = 0
-		tx.DescendLessOrEqual("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+		tx.DescendLessOrEqual("num", pivotKV[int]{v: 5}, func(key string, val int) bool {
 			if val > 5 {
 				t.Fatalf("DescendLessOrEqual: expecting <= 5, got %d", val)
 			}
@@ -884,7 +884,7 @@ func TestTx_DescendAll_Int(t *testing.T) {
 			t.Fatalf("DescendLessOrEqual: expecting 6 results, got %d", i)
 		}
 		i = 0
-		tx.DescendGreaterThan("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+		tx.DescendGreaterThan("num", pivotKV[int]{v: 5}, func(key string, val int) bool {
 			if val <= 5 {
 				t.Fatalf("DescendGreaterThan: expecting > 5, got %d", val)
 			}
@@ -895,7 +895,7 @@ func TestTx_DescendAll_Int(t *testing.T) {
 			t.Fatalf("DescendGreaterThan: expecting 4 results, got %d", i)
 		}
 		i = 0
-		tx.DescendRange("num", PivotKV[int]{v: 7}, PivotKV[int]{v: 5}, func(key string, val int) bool {
+		tx.DescendRange("num", pivotKV[int]{v: 7}, pivotKV[int]{v: 5}, func(key string, val int) bool {
 			if val <= 5 || val > 7 {
 				t.Fatalf("DescendRange: expecting 5 < val <= 7, got %d", val)
 			}
@@ -906,7 +906,7 @@ func TestTx_DescendAll_Int(t *testing.T) {
 			t.Fatalf("DescendRange: expecting 2 results, got %d", i)
 		}
 		i = 0
-		tx.DescendEqual("num", PivotKV[int]{v: 5}, func(key string, val int) bool {
+		tx.DescendEqual("num", pivotKV[int]{v: 5}, func(key string, val int) bool {
 			if val != 5 {
 				t.Fatalf("DescendEqual: expecting 5, got %d", val)
 			}
@@ -1020,7 +1020,7 @@ func TestTx_DescendLessOrEqual(t *testing.T) {
 	}
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
-		err := tx.DescendLessOrEqual("num", PivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
+		err := tx.DescendLessOrEqual("num", pivotKV[mock]{v: mock{Num: 5}}, func(key string, val mock) bool {
 			i++
 			return true
 		})

@@ -23,6 +23,9 @@ func NewGBtree[T any](less func(a, b T) bool) *GBTree[T] {
 
 // ascend is a generic function to ascend the tree. (Internal)
 func (gbt *GBTree[T]) ascend(pivot *T, iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
 	if pivot == nil {
 		gbt.tr.Scan(iter)
 	} else {
@@ -33,6 +36,9 @@ func (gbt *GBTree[T]) ascend(pivot *T, iter func(item T) bool) {
 // descend is a generic function to descend the tree from pivot. (Internal)
 // if pivot is nil it iterates the complete tree in reverse direction
 func (gbt *GBTree[T]) descend(pivot *T, iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
 	if pivot == nil {
 		gbt.tr.Reverse(iter)
 	} else {
@@ -61,7 +67,6 @@ func (gbt *GBTree[T]) Set(item *T, hint any) (prev *T, err error) {
 
 // Delete deletes the item from the tree by key. If the item does not exist, it will return nil.
 // trows error if key is nil
-// todo test
 func (gbt *GBTree[T]) Delete(key *T) (prev *T, err error) {
 	if key == nil {
 		return nil, ErrKeyNil
@@ -93,6 +98,9 @@ func (gbt *GBTree[T]) Get(key *T, hint any) (value *T, ok bool) {
 
 // Walk iterates over all items in the tree by the initial defined order.
 func (gbt *GBTree[T]) Walk(iter func(items []T)) {
+	if iter == nil {
+		return
+	}
 	gbt.tr.Walk(func(items []T) bool {
 		iter(items)
 		return true
@@ -101,12 +109,15 @@ func (gbt *GBTree[T]) Walk(iter func(items []T)) {
 
 // Ascend iterates over all items in the tree by the initial defined order.
 func (gbt *GBTree[T]) Ascend(iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
 	gbt.ascend(nil, iter)
 }
 
 // AscendLT iterates over all items in the tree less than the pivot.
 func (gbt *GBTree[T]) AscendLT(lt *T, iter func(item T) bool) {
-	if lt == nil {
+	if lt == nil || iter == nil {
 		return
 	}
 	gbt.ascend(nil, func(item T) bool {
@@ -120,7 +131,14 @@ func (gbt *GBTree[T]) AscendGTE(gte *T, iter func(item T) bool) {
 }
 
 // AscendRange iterates over all items in the tree greater than or equal to pivot and less than to pivot.
+// if iter is nil does nothing
+// if gte is nil iterates from the beginning
+// if lt is nil iterates to the end
+// if both gte and lt are nil iterates the whole tree
 func (gbt *GBTree[T]) AscendRange(gte, lt *T, iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
 	if gte == nil && lt == nil {
 		gbt.Ascend(iter)
 		return
@@ -144,6 +162,7 @@ func (gbt *GBTree[T]) Descend(iter func(item T) bool) {
 }
 
 // DescendLTE iterates over all items in the tree less than or equal to pivot.
+// if lte is nil does no iteration
 func (gbt *GBTree[T]) DescendLTE(lte *T, iter func(item T) bool) {
 	if lte == nil {
 		return
@@ -152,14 +171,29 @@ func (gbt *GBTree[T]) DescendLTE(lte *T, iter func(item T) bool) {
 }
 
 // DescendGT iterates over all items in the tree greater than pivot.
+// if iter is nil does nothing
+// if gt is nil iterates from the beginning
 func (gbt *GBTree[T]) DescendGT(gt *T, iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
+	if gt == nil {
+		gbt.Descend(iter)
+		return
+	}
 	gbt.descend(nil, func(item T) bool {
 		return gbt.tr.Less(*gt, item) && iter(item)
 	})
 }
 
-// DescendRange iterates over all items in the tree less than or equal to pivot and greater than or equal to pivot.
+// DescendRange iterates over all items in the tree less than or equal to pivot and greater than pivot.
+// if lte is nil iterates until the end
+// if gt is nil iterates from beginning
+// if both lte and gt are nil iterates the whole tree
 func (gbt *GBTree[T]) DescendRange(lte, gt *T, iter func(item T) bool) {
+	if iter == nil {
+		return
+	}
 	if lte == nil && gt == nil {
 		gbt.Descend(iter)
 		return

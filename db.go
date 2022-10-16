@@ -76,6 +76,7 @@ type DB[T any] struct {
 	persist   bool                   // do we write to disk
 	shrinking bool                   // when an aof shrink is in-process.
 	lastaofsz int                    // the size of the last shrink aof size
+	isBiType  bool                   // is the type T a builtin type
 }
 
 // SyncPolicy represents how often data is synced to disk.
@@ -86,13 +87,13 @@ const (
 	// The faster and less safe method.
 	Never SyncPolicy = 0
 	// EverySecond is used to sync data to disk every second.
-	// It's pretty fast and you can lose 1 second of data if there
+	// It's pretty fast, and you can lose 1 second of data if there
 	// is a disaster.
 	// This is the recommended setting.
-	EverySecond = 1
+	EverySecond SyncPolicy = 1
 	// Always is used to sync data after every write to disk.
 	// Slow. Very safe.
-	Always = 2
+	Always SyncPolicy = 2
 )
 
 // Config represents database configuration options. These
@@ -170,6 +171,25 @@ func checkNoVisibleFields[T any](a T) error {
 	return nil
 }
 
+// checkTypeStruct checks if the type is a struct or a pointer to a struct.
+// supports only Single-Nested Structs, e.g. pointer to a struct or slice of structs or slice of pointers to structs
+func checkTypeStruct[T any](a T) bool {
+	rt := reflect.TypeOf(a) // take type of input
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem() // use Elem to get the pointed-to-type
+	}
+	if rt.Kind() == reflect.Slice {
+		rt = rt.Elem() // use Elem to get type of slice's element
+	}
+	if rt.Kind() == reflect.Ptr { // handle input of type like []*StructType
+		rt = rt.Elem() // use Elem to get the pointed-to-type
+	}
+	if rt.Kind() != reflect.Struct {
+		return false
+	}
+	return true
+}
+
 // Open opens a database at the provided path.
 // If the file does not exist then it will be created automatically.
 func Open[T any](path string, a T) (*DB[T], error) {
@@ -204,6 +224,8 @@ func Open[T any](path string, a T) (*DB[T], error) {
 			return nil, err
 		}
 	}
+	// pre-check if type T is a Built-In Type to speed up RW to disk
+	db.isBiType = checkTypeStruct(a)
 	// start the background manager.
 	go db.backgroundManager()
 	return db, nil
@@ -241,10 +263,10 @@ func (db *DB[T]) Save(wr io.Writer) error {
 	// use a buffered writer and flush every 4MB
 	var buf []byte
 	now := time.Now()
-	// iterated through every item in the database and write to the buffer
+	// write every item of the "keys"-Tree to file
 	db.keys.Ascend(func(item *dbItem[T]) bool {
 		dbi := item
-		buf = dbi.writeSetTo(buf, now)
+		buf = dbi.writeSetTo(buf, now, db.isBiType)
 		if len(buf) > 1024*1024*4 {
 			// flush when buffer is over 4MB
 			_, err = wr.Write(buf)
@@ -606,7 +628,7 @@ func (db *DB[T]) Shrink() error {
 						done = false
 						return false
 					}
-					buf = dbi.writeSetTo(buf, now)
+					buf = dbi.writeSetTo(buf, now, db.isBiType)
 					n++
 					return true
 				},
@@ -880,7 +902,7 @@ func (db *DB[T]) load() error {
 	var estaofsz int
 	db.keys.Walk(func(items []*dbItem[T]) {
 		for _, v := range items {
-			estaofsz += v.estAOFSetSize()
+			estaofsz += v.estAOFSetSize(db.isBiType)
 		}
 	})
 	db.lastaofsz += estaofsz

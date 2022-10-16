@@ -20,7 +20,14 @@ type dbItem[T any] struct {
 }
 
 // valueToString converts any value to a string.
-func valueToString[T any](val T) (string, error) {
+func valueToString[T any](val T, bi ...bool) (string, error) {
+	if len(bi) > 0 && bi[0] {
+		b, err := json.Marshal(val) //TODO use gob
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	}
 	switch v := any(val).(type) {
 	case string:
 		return v, nil
@@ -149,28 +156,28 @@ func estBulkStringSize(s string) int {
 }
 
 // estBulkStructSize returns the estimated size of a struct of generic type T.
-func estBulkStructSize[T any](s T) int {
-	str, _ := valueToString[T](s)
+func estBulkStructSize[T any](s T, bi ...bool) int {
+	str, _ := valueToString[T](s, bi...)
 	return 1 + estIntSize(len(str)) + 2 + len(str) + 2
 }
 
 // estAOFSetSize returns an estimated number of bytes that this item will use
 // when stored in the aof file.
-func (dbi *dbItem[T]) estAOFSetSize() int {
+func (dbi *dbItem[T]) estAOFSetSize(bi ...bool) int {
 	var n int
 	if dbi.opts != nil && dbi.opts.ex {
 		n += estArraySize(5)
 		n += estBulkStringSize("set")
 		n += estBulkStringSize(dbi.key)
 		//if type is string use string size
-		n += estBulkStructSize(dbi.val)
+		n += estBulkStructSize(dbi.val, bi...)
 		n += estBulkStringSize("ex")
 		n += estBulkStringSize("99") // estimate two byte bulk string
 	} else {
 		n += estArraySize(3)
 		n += estBulkStringSize("set")
 		n += estBulkStringSize(dbi.key)
-		n += estBulkStructSize(dbi.val)
+		n += estBulkStructSize(dbi.val, bi...)
 	}
 	return n
 }
@@ -194,26 +201,26 @@ func appendBulkString(buf []byte, s string) []byte {
 }
 
 // appendBulkStruct appends a struct after converting to string to the buffer.
-func appendBulkStruct[T any](buf []byte, s T) []byte {
-	str, _ := valueToString[T](s)
+func appendBulkStruct[T any](buf []byte, s T, bi ...bool) []byte {
+	str, _ := valueToString[T](s, bi...)
 	return appendBulkString(buf, str)
 }
 
 // writeSetTo writes an item as a single SET record to the bufio Writer.
-func (dbi *dbItem[T]) writeSetTo(buf []byte, now time.Time) []byte {
+func (dbi *dbItem[T]) writeSetTo(buf []byte, now time.Time, bi ...bool) []byte {
 	if dbi.opts != nil && dbi.opts.ex {
 		ex := dbi.opts.exat.Sub(now) / time.Second
 		buf = appendArray(buf, 5)
 		buf = appendBulkString(buf, "set")
 		buf = appendBulkString(buf, dbi.key)
-		buf = appendBulkStruct(buf, dbi.val)
+		buf = appendBulkStruct(buf, dbi.val, bi...)
 		buf = appendBulkString(buf, "ex")
 		buf = appendBulkString(buf, strconv.FormatUint(uint64(ex), 10))
 	} else {
 		buf = appendArray(buf, 3)
 		buf = appendBulkString(buf, "set")
 		buf = appendBulkString(buf, dbi.key)
-		buf = appendBulkStruct(buf, dbi.val)
+		buf = appendBulkStruct(buf, dbi.val, bi...)
 	}
 	return buf
 }
