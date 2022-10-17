@@ -233,7 +233,7 @@ func (tx *Tx[T]) GetLess(index string) (func(a, b T) bool, error) {
 //
 // Only a writable transaction can be used with this operation.
 // This operation is not allowed during iterations such as Ascend* & Descend*.
-func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
+func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previous *T,
 	replaced bool, err error) {
 	if tx.db == nil {
 		return nil, false, ErrTxClosed
@@ -253,6 +253,8 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
 	// Insert the item into the keys tree.
 	prev := tx.db.insertIntoDatabase(item)
 
+	var previousValue *T
+
 	// insert into the rollback map if there has not been a deleteAll.
 	if tx.wc.rbKeys == nil {
 		if prev == nil {
@@ -260,7 +262,6 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
 			// create a rollback entry with a nil value. A nil value indicates
 			// that the entry should be deleted on rollback. When the value is
 			// *not* nil, that means the entry should be reverted.
-			//todo check why rolling back
 			if _, ok := tx.wc.rollbackItems[key]; !ok {
 				tx.wc.rollbackItems[key] = nil
 			}
@@ -273,7 +274,7 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previousValue *T,
 				tx.wc.rollbackItems[key] = prev
 			}
 			if !prev.expired() {
-				previousValue, replaced = &(prev.val), true //todo check
+				previousValue, replaced = &(prev.val), true
 			}
 		}
 	}
