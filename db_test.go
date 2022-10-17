@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -169,6 +170,89 @@ func TestDB_SaveLoad(t *testing.T) {
 	}
 }
 
+func TestDB_ErrAlreadyClosed(t *testing.T) {
+	db, _ := Open(":memory:", mock{})
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != ErrDatabaseClosed {
+		t.Fatalf("expecting '%v', got '%v'", ErrDatabaseClosed, err)
+	}
+}
+
+func TestDB_ErrConfigClosed(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	_ = db.Close()
+	var config Config[mock]
+	if err := db.ReadConfig(&config); err != ErrDatabaseClosed {
+		t.Fatal("expecting database closed error")
+	}
+	if err := db.SetConfig(config); err != ErrDatabaseClosed {
+		t.Fatal("expecting database closed error")
+	}
+}
+
+func TestDB_ErrShrinkInProcess(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10000; i++ {
+			_, _, err := tx.Set(fmt.Sprintf("%d", i), mock{
+				Key: fmt.Sprintf("%d", i),
+			}, nil)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 250; i < 350; i++ {
+			_, err := tx.Delete(fmt.Sprintf("%d", i))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var err1, err2 error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		err1 = db.Shrink()
+	}()
+	go func() {
+		defer wg.Done()
+		err2 = db.Shrink()
+	}()
+	wg.Wait()
+	//println(123)
+	//fmt.Printf("%v\n%v\n", err1, err2)
+	if err1 != ErrShrinkInProcess && err2 != ErrShrinkInProcess {
+		t.Fatal("expecting a shrink in process error")
+	}
+	db = testReOpen(t, db)
+	defer testClose(db)
+	if err := db.View(func(tx *Tx[mock]) error {
+		n, err := tx.Len()
+		if err != nil {
+			return err
+		}
+		if n != 9900 {
+			t.Fatal("expecting 9900 items")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDB_len(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -246,6 +330,29 @@ func TestDB_SetWithTTL(t *testing.T) {
 	}
 	if item != nil {
 		t.Errorf("expecting nil, got %v", item)
+	}
+}
+
+func TestDB_SetGetPreviousItem(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	//test set previous item
+	prev, err := db.Set("key", mock{Key: "first"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev != nil {
+		t.Fatalf("expecting nil, got %v", prev)
+	}
+	prev, err = db.Set("key", mock{Key: "updated"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev == nil {
+		t.Fatalf("expecting not nil, got %v", prev)
+	}
+	if (*prev).Key != "first" {
+		t.Fatalf("expecting 'first', got %v", prev)
 	}
 }
 
@@ -484,6 +591,33 @@ func TestDB_String(t *testing.T) {
 	}
 	if len != 1 {
 		t.Fatalf("expecting 11, got %d", len)
+	}
+}
+
+func TestDB_CreateIndex(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	// create basic index should not error
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.CreateIndex("idx1", "*", func(a, b mock) bool { return a.Num < b.Num }); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// create index with same name should error
+	if err := db.Update(func(tx *Tx[mock]) error {
+		err := tx.CreateIndex("idx1", "a*", func(a, b mock) bool { return a.Num > b.Num })
+		return err
+	}); err == nil || err != ErrIndexExists {
+		t.Fatalf("duplicated index name should error")
+	}
+	// create unnamed index
+	if err := db.Update(func(tx *Tx[mock]) error {
+		return tx.CreateIndex("", "a*", func(a, b mock) bool { return a.Num > b.Num })
+	}); err == nil || err != ErrIndexExists {
+		t.Fatalf("empty index name should error")
 	}
 }
 
@@ -1141,6 +1275,91 @@ func TestTx_DescendLessOrEqual(t *testing.T) {
 		}
 		return nil
 	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TTL
+
+func TestTx_TTL(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	err := db.Update(func(tx *Tx[mock]) error {
+		if _, _, err := tx.Set("key1", mock{
+			Key: "key1",
+		}, &SetOptions{Expires: true, TTL: time.Second}); err != nil {
+			return err
+		}
+		if _, _, err := tx.Set("key2", mock{
+			Key: "key2",
+		}, nil); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.View(func(tx *Tx[mock]) error {
+		dur1, err := tx.TTL("key1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dur1 > time.Second || dur1 <= 0 {
+			t.Fatalf("expecting between zero and one second, got '%v'", dur1)
+		}
+		dur1, err = tx.TTL("key2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dur1 >= 0 {
+			t.Fatalf("expecting a negative value, got '%v'", dur1)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTx_TTLAfterReopen(t *testing.T) {
+	ttl := time.Second * 3
+	db := testOpen(t)
+	defer testClose(db)
+	_, err := db.Set("key1", mock{
+		Key: "key1",
+	}, &SetOptions{Expires: true, TTL: ttl})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db = testReOpenDelay(t, db, ttl/4)
+	err = db.View(func(tx *Tx[mock]) error {
+		val, err := tx.Get("key1")
+		if err != nil {
+			return err
+		}
+		if val.Key != "key1" {
+			t.Fatalf("expecting '%v', got '%v'", "val1", val)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db = testReOpenDelay(t, db, ttl-ttl/4)
+	defer testClose(db)
+	err = db.View(func(tx *Tx[mock]) error {
+		val, err := tx.Get("key1")
+		if err == nil || err != ErrNotFound {
+			t.Fatal("expecting not found")
+		}
+		if val != nil {
+			t.Fatalf("expecting '%v', got '%v'", nil, val)
+		}
+
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }

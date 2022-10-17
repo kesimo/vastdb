@@ -720,17 +720,14 @@ func (tx *Tx[T]) createIndex(name string, pattern string,
 		return ErrTxIterating
 	}
 	if name == "" {
-		// cannot create an index without a name.
-		// an empty name index is designated for the main "keys" tree.
+		// cannot create an index without identifier (preserved for keys tree)
 		return ErrIndexExists
 	}
-	// check if an index with that name already exists.
+	// check if index already exists
 	if _, ok := tx.db.idxs[name]; ok {
-		// index with name already exists. error.
 		return ErrIndexExists
 	}
 	// generate a less function
-
 	less := combineComparators[T](lessers)
 	var sopts IndexOptions
 	if opts != nil {

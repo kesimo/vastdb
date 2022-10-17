@@ -51,7 +51,7 @@ func (idx *index[T]) clearCopy() *index[T] {
 		less:    idx.less,
 		opts:    idx.opts,
 	}
-	// initialize with empty trees todo check if something is missing here, e.g use == instead
+	// initialize with empty trees
 	if nidx.less != nil {
 		nidx.btr = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
 	}
@@ -60,7 +60,7 @@ func (idx *index[T]) clearCopy() *index[T] {
 
 // rebuild the index
 func (idx *index[T]) rebuild() {
-	// initialize trees todo check if something is missing here, e.g use own less function
+	// initialize trees
 	if idx.less != nil {
 		idx.btr = tree.NewGBtree[*dbItem[T]](lessCtx[T](idx))
 	}
