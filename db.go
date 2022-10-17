@@ -54,6 +54,9 @@ var (
 
 	// ErrTxIterating is returned when Set or Delete are called while iterating.
 	ErrTxIterating = errors.New("tx is iterating")
+
+	// ErrEmptyKey is returned when an empty key is provided.
+	ErrEmptyKey = errors.New("empty key")
 )
 
 func panicErr(err error) error {
@@ -957,6 +960,59 @@ func (db *DB[T]) View(fn func(tx *Tx[T]) error) error {
 // in a panic.
 func (db *DB[T]) Update(fn func(tx *Tx[T]) error) error {
 	return db.managed(true, fn)
+}
+
+// Get returns the value for a given key. If the key does not exist then nil,
+// It's a wrapper around View with a single Get Read-transaction call.
+// ErrNotFound is returned if the key does not exist.
+func (db *DB[T]) Get(key string) (*T, error) {
+	var val *T
+	err := db.View(func(tx *Tx[T]) error {
+		var err error
+		val, err = tx.Get(key, false)
+		return err
+	})
+	return val, err
+}
+
+// Set sets the value for a given key. It's a wrapper around Update with a
+// single Set Write-transaction call.
+// Return previous value if any.
+func (db *DB[T]) Set(key string, val T, options ...*SetOptions) (prev *T, err error) {
+	if len(key) == 0 {
+		return nil, ErrEmptyKey
+	}
+	var p *T
+	if len(options) > 0 {
+		err = db.Update(func(tx *Tx[T]) error {
+			var err error
+			p, _, err = tx.Set(key, val, options[0])
+			return err
+		})
+	} else {
+		err = db.Update(func(tx *Tx[T]) error {
+			var err error
+			p, _, err = tx.Set(key, val, nil)
+			return err
+		})
+	}
+	return p, err
+}
+
+// Del removes the value for a given key. It's a wrapper around Update with a
+// single Delete Write-transaction call.
+// Return previous value if any.
+func (db *DB[T]) Del(key string) (prev *T, err error) {
+	if len(key) == 0 {
+		return nil, ErrEmptyKey
+	}
+	var p *T
+	err = db.Update(func(tx *Tx[T]) error {
+		var err error
+		p, err = tx.Delete(key)
+		return err
+	})
+	return p, err
 }
 
 // get return an item or nil if not found.

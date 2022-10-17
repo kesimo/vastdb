@@ -210,6 +210,115 @@ func TestDB_len(t *testing.T) {
 	}
 }
 
+func TestDB_Set(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	//test default functionality
+	prev, err := db.Set("key", mock{
+		Key: "key",
+		Num: 50,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev != nil {
+		t.Fatalf("expecting nil, got %v", prev)
+	}
+	//test set empty key
+	prev, err = db.Set("", mock{Key: "key-empty"}, nil)
+	if err == nil {
+		t.Fatalf("expecting error, got nil")
+	}
+}
+
+func TestDB_SetWithTTL(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	//test set ttl
+	_, err := db.Set("key-ttl", mock{Key: "key-ttl"}, &SetOptions{TTL: time.Second * 2, Expires: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second * 3)
+	item, err := db.Get("key-ttl")
+	if err == nil {
+		t.Errorf("expecting error, got nil")
+	}
+	if item != nil {
+		t.Errorf("expecting nil, got %v", item)
+	}
+}
+
+func TestDB_Get(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	//test get empty key
+	_, errEmptyKey := db.Get("")
+	if errEmptyKey == nil {
+		t.Fatalf("expecting error, got nil")
+	}
+	//test get non-existent key
+	_, errNonExistingKey := db.Get("key")
+	if errNonExistingKey == nil {
+		t.Fatalf("expecting error, got nil")
+	}
+	if errNonExistingKey != ErrNotFound {
+		t.Fatalf("expecting NotFound error, got %v", errNonExistingKey)
+	}
+	//test get key
+	_, errSet := db.Set("key1", mock{
+		Key: "key",
+		Num: 50,
+	}, nil)
+	if errSet != nil {
+		t.Fatal(errSet)
+	}
+	item, err := db.Get("key1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Key != "key" || item.Num != 50 {
+		t.Fatalf("expecting %v, got %v", mock{
+			Key: "key",
+			Num: 50,
+		}, item)
+	}
+}
+
+func TestDB_Del(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	//test del empty key
+	_, errEmptyKey := db.Del("")
+	if errEmptyKey == nil {
+		t.Fatalf("expecting error, got nil")
+	}
+	//test del non-existent key
+	_, errNonExistingKey := db.Del("key")
+	if errNonExistingKey == nil {
+		t.Fatalf("expecting error, got nil")
+	}
+	if errNonExistingKey != ErrNotFound {
+		t.Fatalf("expecting NotFound error, got %v", errNonExistingKey)
+	}
+	//test del key
+	_, errSet := db.Set("key1", mock{
+		Key: "key",
+		Num: 50,
+	}, nil)
+	if errSet != nil {
+		t.Fatal(errSet)
+	}
+	_, err := db.Del("key1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Get("key1")
+	if err != ErrNotFound {
+		t.Fatalf("expecting NotFound error, got %v", err)
+	}
+}
+
 func TestMutatingIterator(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)

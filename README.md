@@ -8,7 +8,7 @@ with support for generic types and faster field indexing.
 
 The goal of this Project is to provide a generic key-value store, that does not only
 perform well on reads, but also on writes. It's not meant to be a replacement for
-a full blown database, but rather a tool to store data in a fast and easy way.
+a full-blown database, but rather a tool to store data in a fast and easy way.
 
 ## Features
 
