@@ -195,8 +195,14 @@ func checkTypeStruct[T any](a T) bool {
 
 // Open opens a database at the provided path.
 // If the file does not exist then it will be created automatically.
-func Open[T any](path string, a T) (*DB[T], error) {
-	err := checkNoVisibleFields(a)
+func Open[T any](path string, typeObject ...T) (*DB[T], error) {
+	var checkObj T
+	if len(typeObject) > 1 {
+		checkObj = typeObject[0]
+	} else {
+		checkObj = *new(T)
+	}
+	err := checkNoVisibleFields(checkObj)
 	if err != nil {
 		return nil, err
 	}
@@ -227,8 +233,8 @@ func Open[T any](path string, a T) (*DB[T], error) {
 			return nil, err
 		}
 	}
-	// pre-check if type T is a Built-In Type to speed up RW to disk
-	db.isBiType = checkTypeStruct(a)
+	// pre-check if type T is Built-In Type to speed up RW to disk
+	db.isBiType = checkTypeStruct(checkObj)
 	// start the background manager.
 	go db.backgroundManager()
 	return db, nil

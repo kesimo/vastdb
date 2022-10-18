@@ -57,7 +57,92 @@ func testPrepareCombinedIndex(db *DB[mockB]) error {
 	})
 }
 
-func BenchmarkTx_Set(b *testing.B) {
+func Benchmark_Set(b *testing.B) {
+	db, err := testSetupDb()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	//err = testPrepareIntIndex(db)
+	//err = testPrepareStringIndex(db)
+	//err = testPrepareCombinedIndex(db)
+	if err != nil {
+		b.Errorf("failed to create index: %v", err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iStr := strconv.Itoa(i)
+		if err := db.Update(func(tx *Tx[mockB]) error {
+			_, _, err := tx.Set("hello"+iStr, mockB{
+				Key:       "hello" + iStr,
+				Workspace: "ws2",
+				Num:       50,
+				Boolean:   false,
+			}, nil)
+			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_Set_1_index(b *testing.B) {
+	db, err := testSetupDb()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	err = testPrepareIntIndex(db)
+	//err = testPrepareStringIndex(db)
+	//err = testPrepareCombinedIndex(db)
+	if err != nil {
+		b.Errorf("failed to create index: %v", err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iStr := strconv.Itoa(i)
+		if err := db.Update(func(tx *Tx[mockB]) error {
+			_, _, err := tx.Set("hello"+iStr, mockB{
+				Key:       "hello" + iStr,
+				Workspace: "ws2",
+				Num:       50,
+				Boolean:   false,
+			}, nil)
+			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+func Benchmark_Set_2_index(b *testing.B) {
+	db, err := testSetupDb()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	err = testPrepareIntIndex(db)
+	err = testPrepareStringIndex(db)
+	//err = testPrepareCombinedIndex(db)
+	if err != nil {
+		b.Errorf("failed to create index: %v", err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iStr := strconv.Itoa(i)
+		if err := db.Update(func(tx *Tx[mockB]) error {
+			_, _, err := tx.Set("hello"+iStr, mockB{
+				Key:       "hello" + iStr,
+				Workspace: "ws2",
+				Num:       50,
+				Boolean:   false,
+			}, nil)
+			return err
+		}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+func Benchmark_Set_3_index(b *testing.B) {
 	db, err := testSetupDb()
 	if err != nil {
 		b.Fatal(err)
@@ -75,7 +160,7 @@ func BenchmarkTx_Set(b *testing.B) {
 		if err := db.Update(func(tx *Tx[mockB]) error {
 			_, _, err := tx.Set("hello"+iStr, mockB{
 				Key:       "hello" + iStr,
-				Workspace: "ws2" + iStr,
+				Workspace: "ws2",
 				Num:       50,
 				Boolean:   false,
 			}, nil)
@@ -86,7 +171,7 @@ func BenchmarkTx_Set(b *testing.B) {
 	}
 }
 
-func BenchmarkTx_Set_Random(b *testing.B) {
+func Benchmark_Set_Random(b *testing.B) {
 	db, err := testSetupDb()
 	if err != nil {
 		b.Fatal(err)
@@ -154,32 +239,34 @@ func BenchmarkTx_Get(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer db.Close()
-	//err = testPrepareIntIndex(db)
-	//err = testPrepareStringIndex(db)
-	//err = testPrepareCombinedIndex(db)
 	if err != nil {
 		b.Errorf("failed to create index: %v", err)
 	}
-
-	if err := db.Update(func(tx *Tx[mockB]) error {
-		_, _, err := tx.Set("hello", mockB{
-			Key:       "hello",
-			Workspace: "ws1",
-			Num:       50,
-			Boolean:   false,
-		}, nil)
-		return err
-	}); err != nil {
-		b.Fatal(err)
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := db.View(func(tx *Tx[mockB]) error {
-			_, err := tx.Get("hello", true)
+	for i := 0; i < 100000; i++ {
+		if err := db.Update(func(tx *Tx[mockB]) error {
+			_, _, err := tx.Set("key"+strconv.Itoa(i), mockB{
+				Key:       "hello",
+				Workspace: "ws1",
+				Num:       50,
+				Boolean:   false,
+			}, nil)
 			return err
 		}); err != nil {
 			b.Fatal(err)
 		}
+	}
+
+	b.ResetTimer()
+	if err := db.View(func(tx *Tx[mockB]) error {
+		for i := 0; i < b.N; i++ {
+			_, err := tx.Get("key99999", true)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		b.Fatal(err)
 	}
 }
 
@@ -191,8 +278,8 @@ func BenchmarkTx_Get_Random(b *testing.B) {
 	defer db.Close()
 
 	if err := db.Update(func(tx *Tx[mockB]) error {
-		for i := 0; i < 500; i++ {
-			iStr := strconv.Itoa(rand.Int() % 500)
+		for i := 0; i < 100000; i++ {
+			iStr := strconv.Itoa(i)
 			_, _, err := tx.Set("hello"+iStr, mockB{
 				Key:       "hello",
 				Workspace: "ws1",
@@ -208,13 +295,13 @@ func BenchmarkTx_Get_Random(b *testing.B) {
 		b.Fatal(err)
 	}
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := db.View(func(tx *Tx[mockB]) error {
-			_, _ = tx.Get("hello"+strconv.Itoa(i%500), true)
-			return nil
-		}); err != nil {
-			b.Fatal(err)
+	if err := db.View(func(tx *Tx[mockB]) error {
+		for i := 0; i < b.N; i++ {
+			_, _ = tx.Get("hello"+strconv.Itoa(rand.Int()%100000), true)
 		}
+		return nil
+	}); err != nil {
+		b.Fatal(err)
 	}
 }
 

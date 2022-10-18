@@ -2,13 +2,17 @@
 
 # vastDB
 
-**vastDB** is a generic and [fast](#performance) ACID key-Value Store with custom indexing.
+**vastDB** is a generic and [performance](#performance) focused ACID key-Value Store with custom indexing.
 It's basically a modified Version of [buntdb](https://github.com/tidwall/buntdb) 
 with support for generic types and faster field indexing.
 
 The goal of this Project is to provide a generic key-value store, that does not only
-perform well on reads, but also on writes. It's not meant to be a replacement for
-a full-blown database, but rather a tool to store data in a fast and easy way.
+perform well on reads, but also on writes and especially for writes with indexing 
+on struct properties. This can be achieved by using the struct directly in the
+indexing process. This is not possible with buntdb, because it only supports
+indexing on string values or on json fields (reduces performance significant).
+It's not meant to be a replacement for
+a full-blown database, but rather a tool to store and lookup data in a fast and easy way.
 
 ## Features
 
@@ -39,7 +43,6 @@ a full-blown database, but rather a tool to store data in a fast and easy way.
     - [Transactions](#transactions)
     - [Indexes](#indexes)
     - [Iterating data](#iterating-data)
-- [Examples](#examples)
 - [Performance](#performance)
 - [License](#license)
 
@@ -68,6 +71,10 @@ import "github.com/kesimo/vastdb"
 ---
 
 ```go
+package main
+
+import "github.com/kesimo/vastdb"
+
 // create a custom struct to store in the database
 type customItem struct {
 	ID       string
@@ -78,7 +85,7 @@ type customItem struct {
 // or ":memory:" to create a database that exists only in memory
 // add an empty (or filled) object of the custom struct to the database
 // interfaces are not supported as well as double-pointers
-db, err := Open(":memory:", customItem{})
+db, err := Open(":memory:", customItem{}) //OR Open[customItem]("path/to/db")
 if err != nil {
     // handle error
 }
@@ -112,7 +119,7 @@ config := &vastdb.Config[customItem]{
 	// OnExpiredSync will be called inside the same transaction that is
 	// performing the deletion of expired items. If OnExpired is present then
 	// this callback will not be called. If this callback is present, then the
-	// deletion of the timeed-out item is the explicit responsibility of this
+	// deletion of the timed-out item is the explicit responsibility of this
 	// callback.
 	OnExpiredSync func(key string, value T, tx *Tx[T]) error
 }
@@ -124,57 +131,68 @@ db.SetConfig(config)
 ### Inserting data
 
 ---
+Insert Data into the database by passing in a key and a value of the custom struct.
+If the key already exists, the value will be overwritten and the old value will be returned.
+
+**WARNING: If you use persistent storage, only the exported fields will be stored.**
 
 ```go
 // [...]
 // insert a new item into the database
-err := db.Update(func(tx *vastdb.Tx[customItem]) error {
-    // create a new item
-    item := customItem{
-        ID: "123",
-        Num: 123,
-    }
-    // insert the item into the database
-    // the key must be a string
-    // the value must be the predefined custom struct
-    _, _, err := tx.Set("keyA", &item, nil)
-    return err
+prev, err := db.Set("keyA", mockExt{
+    ID:        "id1",
+    Num:        1,
 })
+// insert a new item into the database with a TTL
+prev, err := db.SetWithTTL("keyA", mockExt{
+    ID:        "id1",
+    Num:        1,
+}, &vastdb.SetOptions{TTL: time.Second, Expires: true})
 ```
 
 ### Reading data
 
 ---
+Read data from the database by passing in a key. 
+The value will be returned as a pointer to the custom struct.
+If the key does not exist, the returned pointer will be nil.
+if the value is expired nothing will be returned.
+
+
+**WARNING**: 
+Do not modify the returned value, as it will be modified in the database as well.
+If you want to modify the value, you have to copy it first.
+In case you want to modify the value in database, you should use a transaction.
 
 ```go
+package main
+
+import "github.com/kesimo/vastdb"
 // [...]
 // read an item from the database
-err := db.View(func(tx *vastdb.Tx[customItem]) error {
-    // the key must be a string
-    // the return value's type is the predefined custom struct
-    val, err := tx.Get("keyA")
-    if err != nil {
-        return err
-    }
-    // do something with the item
-    fmt.Println(val.ID)
-    return nil
-})
+item, err := db.Get("keyA")
+if err != nil {
+    // handle error
+}
+// do something with the item
+if item.ID != "id1" {
+    //...
+}
 ```
 
 ### Deleting data
 
 ---
+Delete data from the database by passing in a key.
+The deleted value will be returned as a pointer to the custom struct.
 
 ```go
 // [...]
 // delete an item from the database
-err := db.Update(func(tx *vastdb.Tx[customItem]) error {
-    // the key must be a string
-    // returns the deleted item if existed or nil
-    prev, err := tx.Delete("keyA")
-    return err
-})
+prev, err = db.Del("key1")
+if err != nil {
+t.Errorf("error deleting item: %v", err)
+}
 ```
 
 ### Transactions
@@ -183,10 +201,12 @@ transactions can be used to group multiple operations into a single atomic opera
 like updating multiple objects or deleting multiple objects.
 there can be multiple transactions running at the same time, but only one transaction
 can be writing to the database at a time.
-to open a read-only transaction, use the `View` method.
-to open a read-write transaction, use the `Update` method.
 
-For example update one field in an item:
+to open a read-only transaction, use the `db.View` method.
+
+to open a read-write transaction, use the `db.Update` method.
+
+For example - update one field in an item:
 
 ```go
 // [...]
@@ -199,8 +219,11 @@ err := db.Update(func(tx *vastdb.Tx[customItem]) error {
     // update the item
     val.Num = 321
     // insert the updated item into the database
-    _, _, err := tx.Set("keyA", &val, nil)
-    return err
+    _, _, err = tx.Set("keyA", *val, nil)
+	if err != nil {
+		return err
+	}
+    return nil
 })
 ```
 
@@ -227,6 +250,85 @@ err := db.CreateIndex("num", "key:*",func(a, b *customItem) bool {
 
 ### Iterating data
 
-TODO
+For iterating over the database, you can use the `Ascend` and `Descend` methods.
 
+for Pivots, you have tu use a object of type `*vastdb.PivotKV[T]`
+its a struct that contains the `key` and the `value` of the item
+and used for fallback in case the index is empty -> using the `k` property
+
+`*vastdb.PivotKV[customItem]{k: "keyA", v: customItem{Num: 1}}`
+
+
+Example usage of `AscendLessThan`:
+
+```go
+// [...]
+// iterate over all items in the database that have a Num field less than 10
+err := db.View(func(tx *Tx[mock]) error {
+    err := tx.AscendLessThan("num", *vastdb.PivotKV[customItem]{v: customItem{Num: 10}}, 
+	func(key string, val mock) bool {
+		//should always be true
+		if val.Num < 10 { 
+			// ...
+		}
+		// break the iteration if false is returned
+		return true
+	})
+    if err != nil {
+    // handle error
+    }
+    return nil
+})
+```
+
+Avaliable methods are:
+
+| Method                                                 | Usage                                                                                     |
+|--------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| AscendKeys(pattern, iterator)                          | Iterate through all Elements that matches the key pattern (e.g. "user:*")                 |
+| Ascend(index, iterator)                                | Iterate through all Elements in specified index                                           |
+| AscendGreaterOrEqual(index, gte pivotKV, iterator)     | Iterate through all Elements that are greater or equal the specified pivot in index       |
+| AscendLessThan(index, lt PivotKV, iterator)            | Iterate through all Elements that are less than the specified pivot in index              |
+| AscendRange(index, gte PivotKV, lt PivotKV, iterator)  | Iterates through Elements in specified Range in index                                     |
+| AscendEqual(index, eq PivotKV, iterator)               | Iterates through Elements with equal value to specified one                               |
+| DescendKeys(pattern, iterator)                         | Equal to "AscendKeys", but in descend order                                               |
+| Descend(index, iterator)                               | Equal to "Ascend", but in descend order                                                   |
+| DescendLessOrEqual(index, lte PivotKV, iterator)       | Iterates through all Elements that are less or equal the specified pivot in descend order |
+| DescendGreaterThan(index, gt PivotKV, iterator)        | Iterates through all Elements that are greater than the specified pivot in descend order  |
+| DescendRange(index, lte PivotKV, gt PivotKV, iterator) | Equal to "AscendRange", but in descend order                                              |
+| DescendEqual(index, eq PivotKV, iterator)              | Equal to "AscendEqual", but in descend order                                              |
+
+
+### Performance
+
+---
+
+The performance of the database is heavily dependent on the performance of the comparator function
+and the usage of indexes.
+
+for benchmarking we used the following struct:
+
+```go
+type mockB struct {
+    Key       string
+    Workspace string
+    Num       int
+    Boolean   bool
+}
+```
+
+Benchmark results of set operations:
+
+```
+cpu: Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz
+
+Benchmark_Set-8                  1105269          1048 ns/op
+Benchmark_Set_1_index-8           721592          1789 ns/op
+Benchmark_Set_2_index-8           502111          2583 ns/op
+Benchmark_Set_3_index-8           333624          3848 ns/op
+Benchmark_Set_Persist-8           120302          10947 ns/op
+BenchmarkTx_Get-8                3921300          301.0 ns/op
+BenchmarkTx_Get_Random-8         1347905          876.1 ns/op
+BenchmarkTx_Get_Parallel-8      13910053          85.15 ns/op
+```
 

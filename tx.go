@@ -362,8 +362,8 @@ func (tx *Tx[_]) TTL(key string) (time.Duration, error) {
 	return dur, nil
 }
 
-// pivotKV is a Key/value pair that is used to pivot a range of items.
-type pivotKV[T any] struct {
+// PivotKV is a Key/value pair that is used to pivot a range of items.
+type PivotKV[T any] struct {
 	k string
 	v T
 }
@@ -378,7 +378,7 @@ type pivotKV[T any] struct {
 // The start and stop params are the greaterThan, lessThan limits. For
 // descending order, these will be lessThan, greaterThan.
 // An error will be returned if the tx is closed or the index is not found.
-func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start pivotKV[T], stop pivotKV[T],
+func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop PivotKV[T],
 	iterator func(key string, value T) bool) error {
 	if tx.db == nil {
 		return ErrTxClosed
@@ -475,7 +475,7 @@ func (tx *Tx[T]) AscendKeys(pattern string,
 		})
 	}
 	min, max := match.Allowable(pattern)
-	return tx.AscendGreaterOrEqual("", pivotKV[T]{k: min}, func(key string, value T) bool {
+	return tx.AscendGreaterOrEqual("", PivotKV[T]{k: min}, func(key string, value T) bool {
 		if key > max {
 			return false
 		}
@@ -508,7 +508,7 @@ func (tx *Tx[T]) DescendKeys(pattern string,
 		})
 	}
 	min, max := match.Allowable(pattern)
-	return tx.DescendLessOrEqual("", pivotKV[T]{k: max}, func(key string, value T) bool {
+	return tx.DescendLessOrEqual("", PivotKV[T]{k: max}, func(key string, value T) bool {
 		if key < min {
 			return false
 		}
@@ -529,7 +529,7 @@ func (tx *Tx[T]) DescendKeys(pattern string,
 // An invalid index will return an error.
 func (tx *Tx[T]) Ascend(index string,
 	iterator func(key string, value T) bool) error {
-	return tx.scan(false, false, false, index, pivotKV[T]{k: ""}, pivotKV[T]{k: ""}, iterator)
+	return tx.scan(false, false, false, index, PivotKV[T]{k: ""}, PivotKV[T]{k: ""}, iterator)
 }
 
 // AscendGreaterOrEqual calls the iterator for every item in the database within
@@ -538,9 +538,9 @@ func (tx *Tx[T]) Ascend(index string,
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) AscendGreaterOrEqual(index string, pivot pivotKV[T],
+func (tx *Tx[T]) AscendGreaterOrEqual(index string, pivot PivotKV[T],
 	iterator func(key string, value T) bool) error {
-	return tx.scan(false, true, false, index, pivot, *new(pivotKV[T]), iterator)
+	return tx.scan(false, true, false, index, pivot, *new(PivotKV[T]), iterator)
 }
 
 // AscendLessThan calls the iterator for every item in the database within the
@@ -550,9 +550,9 @@ func (tx *Tx[T]) AscendGreaterOrEqual(index string, pivot pivotKV[T],
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 // excluding the pivot
-func (tx *Tx[T]) AscendLessThan(index string, lessThan pivotKV[T],
+func (tx *Tx[T]) AscendLessThan(index string, lessThan PivotKV[T],
 	iterator func(key string, value T) bool) error {
-	return tx.scan(false, false, true, index, lessThan, *new(pivotKV[T]), iterator)
+	return tx.scan(false, false, true, index, lessThan, *new(PivotKV[T]), iterator)
 }
 
 // AscendRange calls the iterator for every item in the database within
@@ -562,7 +562,7 @@ func (tx *Tx[T]) AscendLessThan(index string, lessThan pivotKV[T],
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 //including greaterOrEqual, excluding lessThan
-func (tx *Tx[T]) AscendRange(index string, greaterOrEqual, lessThan pivotKV[T],
+func (tx *Tx[T]) AscendRange(index string, greaterOrEqual, lessThan PivotKV[T],
 	iterator func(key string, value T) bool) error {
 	return tx.scan(
 		false, true, true, index, greaterOrEqual, lessThan, iterator,
@@ -577,7 +577,7 @@ func (tx *Tx[T]) AscendRange(index string, greaterOrEqual, lessThan pivotKV[T],
 // An invalid index will return an error.
 func (tx *Tx[T]) Descend(index string,
 	iterator func(key string, value T) bool) error {
-	return tx.scan(true, false, false, index, *new(pivotKV[T]), *new(pivotKV[T]), iterator)
+	return tx.scan(true, false, false, index, *new(PivotKV[T]), *new(PivotKV[T]), iterator)
 }
 
 // DescendGreaterThan calls the iterator for every item in the database within
@@ -586,9 +586,9 @@ func (tx *Tx[T]) Descend(index string,
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) DescendGreaterThan(index string, pivot pivotKV[T],
+func (tx *Tx[T]) DescendGreaterThan(index string, pivot PivotKV[T],
 	iterator func(key string, value T) bool) error {
-	return tx.scan(true, true, false, index, pivot, *new(pivotKV[T]), iterator)
+	return tx.scan(true, true, false, index, pivot, *new(PivotKV[T]), iterator)
 }
 
 // DescendLessOrEqual calls the iterator for every item in the database within
@@ -597,9 +597,9 @@ func (tx *Tx[T]) DescendGreaterThan(index string, pivot pivotKV[T],
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) DescendLessOrEqual(index string, pivot pivotKV[T],
+func (tx *Tx[T]) DescendLessOrEqual(index string, pivot PivotKV[T],
 	iterator func(key string, value T) bool) error {
-	return tx.scan(true, false, true, index, pivot, *new(pivotKV[T]), iterator)
+	return tx.scan(true, false, true, index, pivot, *new(PivotKV[T]), iterator)
 }
 
 // DescendRange calls the iterator for every item in the database within
@@ -608,7 +608,7 @@ func (tx *Tx[T]) DescendLessOrEqual(index string, pivot pivotKV[T],
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) DescendRange(index string, lessOrEqual, greaterThan pivotKV[T],
+func (tx *Tx[T]) DescendRange(index string, lessOrEqual, greaterThan PivotKV[T],
 	iterator func(key string, value T) bool) error {
 	return tx.scan(
 		true, true, true, index, lessOrEqual, greaterThan, iterator,
@@ -621,7 +621,7 @@ func (tx *Tx[T]) DescendRange(index string, lessOrEqual, greaterThan pivotKV[T],
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) AscendEqual(index string, pivot pivotKV[T],
+func (tx *Tx[T]) AscendEqual(index string, pivot PivotKV[T],
 	iterator func(key string, value T) bool) error {
 	var err error
 	var less func(a, b T) bool
@@ -649,7 +649,7 @@ func (tx *Tx[T]) AscendEqual(index string, pivot pivotKV[T],
 // as specified by the less() function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
-func (tx *Tx[T]) DescendEqual(index string, pivot pivotKV[T],
+func (tx *Tx[T]) DescendEqual(index string, pivot PivotKV[T],
 	iterator func(key string, value T) bool) error {
 	var err error
 	var less func(a, b T) bool
