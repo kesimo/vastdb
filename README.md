@@ -317,7 +317,7 @@ type mockB struct {
 }
 ```
 
-Benchmark results of set operations:
+Benchmark results of set and get operations:
 
 ```
 cpu: Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz
@@ -331,4 +331,12 @@ BenchmarkTx_Get-8                3921300          301.0 ns/op
 BenchmarkTx_Get_Random-8         1347905          876.1 ns/op
 BenchmarkTx_Get_Parallel-8      13910053          85.15 ns/op
 ```
+
+### License
+
+---
+
+MIT License
+
+for more information see the LICENSE file
 
