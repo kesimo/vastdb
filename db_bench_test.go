@@ -84,6 +84,11 @@ func Benchmark_Set(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+	b.StopTimer()
+	len, _ := db.Len()
+	if len != b.N {
+		b.Errorf("expected %d, got %d", b.N, len)
+	}
 }
 
 func Benchmark_Set_1_index(b *testing.B) {

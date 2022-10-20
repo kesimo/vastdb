@@ -5,15 +5,11 @@
 package vastdb
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"github.com/kesimo/vastdb/internal/tree"
 	"io"
-	"os"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -66,20 +62,15 @@ func panicErr(err error) error {
 // DB represents a collection of Key-value pairs that persist on disk.
 // Transactions are used for all forms of data access to the DB.
 type DB[T any] struct {
-	mu        sync.RWMutex           // the gatekeeper for all fields
-	file      *os.File               // the underlying file
-	buf       []byte                 // a buffer to write to
-	keys      tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
-	exps      tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
-	idxs      map[string]*index[T]   // the index trees.
-	insIdxs   []*index[T]            // a reuse buffer for gathering indexes
-	flushes   int                    // a count of the number of disk flushes
-	closed    bool                   // set when the database has been closed
-	config    Config[T]              // the database configuration
-	persist   bool                   // do we write to disk
-	shrinking bool                   // when an aof shrink is in-process.
-	lastaofsz int                    // the size of the last shrink aof size
-	isBiType  bool                   // is the type T a builtin type
+	mu          sync.RWMutex           // the gatekeeper for all fields
+	persistence *persistence[T]        // persistence layer
+	keys        tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
+	exps        tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
+	idxs        map[string]*index[T]   // the index trees.
+	insIdxs     []*index[T]            // a reuse buffer for gathering indexes
+	closed      bool                   // set when the database has been closed
+	config      Config[T]              // the database configuration
+	isBiType    bool                   // is the type T a builtin type
 }
 
 // SyncPolicy represents how often data is synced to disk.
@@ -217,21 +208,18 @@ func Open[T any](path string, typeObject ...T) (*DB[T], error) {
 		AutoShrinkPercentage: 100,
 		AutoShrinkMinSize:    32 * 1024 * 1024,
 	}
-	// turn off persistence for pure in-memory
-	db.persist = path != ":memory:" && path != ""
-	if db.persist {
-		var err error
-		// hard coding 0666 as the default mode.
-		db.file, err = os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
-		if err != nil {
-			return nil, err
-		}
-		// load the database from disk
-		if err := db.load(); err != nil {
-			// close on error, ignore close error
-			_ = db.file.Close()
-			return nil, err
-		}
+	// configure the persistence layer
+	db.persistence = &persistence[T]{
+		DB: db,
+		// disable persistence if no path or :memory: provided
+		isActive:             path != ":memory:" && path != "",
+		path:                 path,
+		AutoShrinkPercentage: db.config.AutoShrinkPercentage,
+		AutoShrinkMinSize:    db.config.AutoShrinkMinSize,
+	}
+	err = db.persistence.Open()
+	if err != nil {
+		return nil, err
 	}
 	// pre-check if type T is Built-In Type to speed up RW to disk
 	db.isBiType = checkTypeStruct(checkObj)
@@ -249,17 +237,18 @@ func (db *DB[T]) Close() error {
 		return ErrDatabaseClosed
 	}
 	db.closed = true
-	if db.persist {
-		_ = db.file.Sync() // do a sync but ignore the error
-		if err := db.file.Close(); err != nil {
-			return err
-		}
+	// TODO: replace with persistence.Close
+	err := db.persistence.Close()
+	if err != nil && err != ErrSyncFile {
+		// ignore sync error and close file
+		return err
 	}
-	// Let's release all references to nil. This will help both with debugging
-	// late usage panics and it provides a hint to the garbage collector
-	db.keys, db.exps, db.idxs, db.file = nil, nil, nil, nil
+	// set all references to nil in order to prevent later usage
+	db.keys, db.exps, db.idxs, db.persistence = nil, nil, nil, nil
 	return nil
 }
+
+//TODO rename "snapshot" and properly outsource
 
 // Save writes a snapshot of the database to a writer. This operation blocks all
 // writes, but not reads. This can be used for snapshots and backups for pure
@@ -269,7 +258,7 @@ func (db *DB[T]) Save(wr io.Writer) error {
 	var err error
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	// use a buffered writer and flush every 4MB
+	// use a buffered writer and txCommit every 4MB
 	var buf []byte
 	now := time.Now()
 	// write every item of the "keys"-Tree to file
@@ -277,7 +266,7 @@ func (db *DB[T]) Save(wr io.Writer) error {
 		dbi := item
 		buf = dbi.writeSetTo(buf, now, db.isBiType)
 		if len(buf) > 1024*1024*4 {
-			// flush when buffer is over 4MB
+			// txCommit when buffer is over 4MB
 			_, err = wr.Write(buf)
 			if err != nil {
 				return false
@@ -289,7 +278,7 @@ func (db *DB[T]) Save(wr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// one final flush
+	// one final txCommit
 	if len(buf) > 0 {
 		_, err = wr.Write(buf)
 		if err != nil {
@@ -305,11 +294,12 @@ func (db *DB[T]) Save(wr io.Writer) error {
 func (db *DB[T]) Load(rd io.Reader) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	if db.persist {
+	if db.persistence.isActive {
 		// cannot load into databases that persist to disk
 		return ErrPersistenceActive
 	}
-	_, err := db.readLoad(rd, time.Now())
+	// TODO: replace with persistence.RLoad
+	_, err := db.persistence.LoadFromReader(rd, time.Now())
 	return err
 }
 
@@ -496,18 +486,12 @@ func (db *DB[T]) backgroundManager() {
 			if onExpired == nil {
 				onExpiredSync = db.config.OnExpiredSync
 			}
-			if db.persist && !db.config.AutoShrinkDisabled {
-				pos, err := db.file.Seek(0, 1)
-				if err != nil {
-					return err
-				}
-				aofsz := int(pos)
-				if aofsz > db.config.AutoShrinkMinSize {
-					prc := float64(db.config.AutoShrinkPercentage) / 100.0
-					shrink = aofsz > db.lastaofsz+int(float64(db.lastaofsz)*prc)
-				}
+			var err error
+			shrink, err = db.persistence.AutoShrink()
+			if err != nil {
+				return err
 			}
-			// produce a list of expired items that need removing
+			// get expired items from the expires tree
 			expItem := &dbItem[T]{opts: &dbItemOpts{ex: true, exat: time.Now()}}
 			db.exps.AscendLT(&expItem, func(item *dbItem[T]) bool {
 				expired = append(expired, item)
@@ -545,15 +529,15 @@ func (db *DB[T]) backgroundManager() {
 			}
 			onExpired(keys)
 		}
-
 		// execute a disk sync, if needed
 		func() {
 			db.mu.Lock()
 			defer db.mu.Unlock()
-			if db.persist && db.config.SyncPolicy == EverySecond &&
-				flushes != db.flushes {
-				_ = db.file.Sync()
-				flushes = db.flushes
+			if db.persistence.isActive && db.config.SyncPolicy == EverySecond &&
+				flushes != db.persistence.flushes {
+				// TODO: Use persistence.Sync
+				_ = db.persistence.FileSync()
+				flushes = db.persistence.flushes
 			}
 		}()
 		if shrink {
@@ -569,351 +553,7 @@ func (db *DB[T]) backgroundManager() {
 // Shrink will make the database file smaller by removing redundant
 // log entries. This operation does not block the database.
 func (db *DB[T]) Shrink() error {
-	db.mu.Lock()
-	if db.closed {
-		db.mu.Unlock()
-		return ErrDatabaseClosed
-	}
-	if !db.persist {
-		// The database was opened with ":memory:" as the path.
-		// There is no persistence, and no need to do anything here.
-		db.mu.Unlock()
-		return nil
-	}
-	if db.shrinking {
-		// The database is already in the process of shrinking.
-		db.mu.Unlock()
-		return ErrShrinkInProcess
-	}
-	db.shrinking = true
-	defer func() {
-		db.mu.Lock()
-		db.shrinking = false
-		db.mu.Unlock()
-	}()
-	filename := db.file.Name()
-	tmp := filename + ".tmp"
-	// the endPosition is used to return to the end of the file when we are
-	// finished writing all the current items.
-	endPosition, err := db.file.Seek(0, 2)
-	if err != nil {
-		return err
-	}
-	db.mu.Unlock()
-	time.Sleep(time.Second / 4) // wait just a bit before starting
-	f, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = f.Close()
-		_ = os.RemoveAll(tmp)
-	}()
-
-	// we are going to read items in as chunks as to not hold up the database
-	// for too long.
-	var buf []byte
-	pivot := ""
-	done := false
-	for !done {
-		err := func() error {
-			db.mu.RLock()
-			defer db.mu.RUnlock()
-			if db.closed {
-				return ErrDatabaseClosed
-			}
-			done = true
-			var n int
-			now := time.Now()
-			pivItem := &dbItem[T]{key: pivot}
-			db.keys.AscendGTE(&pivItem,
-				func(item *dbItem[T]) bool {
-					dbi := item
-					// 1000 items or 64MB buffer
-					if n > 1000 || len(buf) > 64*1024*1024 {
-						pivot = dbi.key
-						done = false
-						return false
-					}
-					buf = dbi.writeSetTo(buf, now, db.isBiType)
-					n++
-					return true
-				},
-			)
-			if len(buf) > 0 {
-				if _, err := f.Write(buf); err != nil {
-					return err
-				}
-				buf = buf[:0]
-			}
-			return nil
-		}()
-		if err != nil {
-			return err
-		}
-	}
-	// We reached this far so all the items have been written to a new tmp
-	// There's some more work to do by appending the new line from the aof
-	// to the tmp file and finally swap the files out.
-	return func() error {
-		// We're wrapping this in a function to get the benefit of a deferred
-		// lock/unlock.
-		db.mu.Lock()
-		defer db.mu.Unlock()
-		if db.closed {
-			return ErrDatabaseClosed
-		}
-		// We are going to open a new version of the aof file so that we do
-		// not change the seek position of the previous. This may cause a
-		// problem in the future if we choose to use syscall file locking.
-		aof, err := os.Open(filename)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = aof.Close() }()
-		if _, err := aof.Seek(endPosition, 0); err != nil {
-			return err
-		}
-		// Just copy all the new commands that have occurred since we
-		// started the shrink process.
-		if _, err := io.Copy(f, aof); err != nil {
-			return err
-		}
-		// Close all files
-		if err := aof.Close(); err != nil {
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
-		if err := db.file.Close(); err != nil {
-			return err
-		}
-		// Any failures below here are awful. So just panic.
-		if err := os.Rename(tmp, filename); err != nil {
-			_ = panicErr(err)
-		}
-		db.file, err = os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0666)
-		if err != nil {
-			_ = panicErr(err)
-		}
-		pos, err := db.file.Seek(0, 2)
-		if err != nil {
-			return err
-		}
-		db.lastaofsz = int(pos)
-		return nil
-	}()
-}
-
-// readLoad reads from the reader and loads commands into the database.
-// modTime is the modified time of the reader, should be no greater than
-// the current time.Now().
-// Returns the number of bytes of the last command read and the error if any.
-func (db *DB[T]) readLoad(rd io.Reader, modTime time.Time) (n int64, err error) {
-	defer func() {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-	}()
-	totalSize := int64(0)
-	data := make([]byte, 4096)
-	parts := make([]string, 0, 8)
-	r := bufio.NewReader(rd)
-	for {
-		// peek at the first byte. If it's a 'nul' control character then
-		// ignore it and move to the next byte.
-		c, err := r.ReadByte()
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return totalSize, err
-		}
-		if c == 0 {
-			// ignore nul control characters
-			n += 1
-			continue
-		}
-		if err := r.UnreadByte(); err != nil {
-			return totalSize, err
-		}
-
-		// read a single command.
-		// first we should read the number of parts that the of the command
-		cmdByteSize := int64(0)
-		line, err := r.ReadBytes('\n')
-		if err != nil {
-			return totalSize, err
-		}
-		if line[0] != '*' {
-			return totalSize, ErrInvalid
-		}
-		cmdByteSize += int64(len(line))
-
-		// convert the string number to and int
-		var n int
-		if len(line) == 4 && line[len(line)-2] == '\r' {
-			if line[1] < '0' || line[1] > '9' {
-				return totalSize, ErrInvalid
-			}
-			n = int(line[1] - '0')
-		} else {
-			if len(line) < 5 || line[len(line)-2] != '\r' {
-				return totalSize, ErrInvalid
-			}
-			for i := 1; i < len(line)-2; i++ {
-				if line[i] < '0' || line[i] > '9' {
-					return totalSize, ErrInvalid
-				}
-				n = n*10 + int(line[i]-'0')
-			}
-		}
-		// read each part of the command.
-		parts = parts[:0]
-		for i := 0; i < n; i++ {
-			// read the number of bytes of the part.
-			line, err := r.ReadBytes('\n')
-			if err != nil {
-				return totalSize, err
-			}
-			if line[0] != '$' {
-				return totalSize, ErrInvalid
-			}
-			cmdByteSize += int64(len(line))
-			// convert the string number to and int
-			var n int
-			if len(line) == 4 && line[len(line)-2] == '\r' {
-				if line[1] < '0' || line[1] > '9' {
-					return totalSize, ErrInvalid
-				}
-				n = int(line[1] - '0')
-			} else {
-				if len(line) < 5 || line[len(line)-2] != '\r' {
-					return totalSize, ErrInvalid
-				}
-				for i := 1; i < len(line)-2; i++ {
-					if line[i] < '0' || line[i] > '9' {
-						return totalSize, ErrInvalid
-					}
-					n = n*10 + int(line[i]-'0')
-				}
-			}
-			// resize the read buffer
-			if len(data) < n+2 {
-				dataln := len(data)
-				for dataln < n+2 {
-					dataln *= 2
-				}
-				data = make([]byte, dataln)
-			}
-			if _, err = io.ReadFull(r, data[:n+2]); err != nil {
-				return totalSize, err
-			}
-			if data[n] != '\r' || data[n+1] != '\n' {
-				return totalSize, ErrInvalid
-			}
-			// copy string
-			parts = append(parts, string(data[:n]))
-			cmdByteSize += int64(n + 2)
-		}
-		// finished reading the command
-
-		if len(parts) == 0 {
-			continue
-		}
-		if (parts[0][0] == 's' || parts[0][0] == 'S') &&
-			(parts[0][1] == 'e' || parts[0][1] == 'E') &&
-			(parts[0][2] == 't' || parts[0][2] == 'T') {
-			// SET
-			if len(parts) < 3 || len(parts) == 4 || len(parts) > 5 {
-				return totalSize, ErrInvalid
-			}
-			if len(parts) == 5 {
-				if strings.ToLower(parts[3]) != "ex" {
-					return totalSize, ErrInvalid
-				}
-				ex, err := strconv.ParseUint(parts[4], 10, 64)
-				if err != nil {
-					return totalSize, err
-				}
-				now := time.Now()
-				dur := (time.Duration(ex) * time.Second) - now.Sub(modTime)
-				if dur > 0 {
-					var valT T
-					if err := valueFromString(parts[2], &valT); err != nil {
-						return totalSize, err
-					}
-					db.insertIntoDatabase(&dbItem[T]{
-						key: parts[1],
-						val: valT,
-						opts: &dbItemOpts{
-							ex:   true,
-							exat: now.Add(dur),
-						},
-					})
-				}
-			} else {
-				var valT T
-				if err := valueFromString(parts[2], &valT); err != nil {
-					return totalSize, err
-				}
-				db.insertIntoDatabase(&dbItem[T]{key: parts[1], val: valT})
-			}
-		} else if (parts[0][0] == 'd' || parts[0][0] == 'D') &&
-			(parts[0][1] == 'e' || parts[0][1] == 'E') &&
-			(parts[0][2] == 'l' || parts[0][2] == 'L') {
-			// DEL
-			if len(parts) != 2 {
-				return totalSize, ErrInvalid
-			}
-			db.deleteFromDatabase(&dbItem[T]{key: parts[1]})
-		} else if (parts[0][0] == 'f' || parts[0][0] == 'F') &&
-			strings.ToLower(parts[0]) == "flushdb" {
-			db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
-			db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
-			db.idxs = make(map[string]*index[T])
-		} else {
-			return totalSize, ErrInvalid
-		}
-		totalSize += cmdByteSize
-	}
-}
-
-// load reads entries from the append-only database file and fills the database.
-// The file format uses the Redis append only file format, which is and a series
-// of RESP commands. For more information on RESP please read
-// http://redis.io/topics/protocol. The only supported RESP commands are DEL and
-// SET.
-func (db *DB[T]) load() error {
-	fi, err := db.file.Stat()
-	if err != nil {
-		return err
-	}
-	n, err := db.readLoad(db.file, fi.ModTime())
-	if err != nil {
-		if err == io.ErrUnexpectedEOF {
-			// The db file has ended mid-command, which is allowed but the
-			// data file should be truncated to the end of the last valid
-			// command
-			if err := db.file.Truncate(n); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	if _, err := db.file.Seek(n, 0); err != nil {
-		return err
-	}
-	var estaofsz int
-	db.keys.Walk(func(items []*dbItem[T]) {
-		for _, v := range items {
-			estaofsz += v.estAOFSetSize(db.isBiType)
-		}
-	})
-	db.lastaofsz += estaofsz
-	return nil
+	return db.persistence.Shrink()
 }
 
 // managed calls a block of code that is fully contained in a transaction.
@@ -1054,7 +694,7 @@ func (db *DB[T]) begin(writable bool) (*Tx[T], error) {
 		tx.wc = &txWriteContext[T]{}
 		tx.wc.rollbackItems = make(map[string]*dbItem[T])
 		tx.wc.rollbackIndexes = make(map[string]*index[T])
-		if db.persist {
+		if db.persistence.isActive {
 			tx.wc.commitItems = make(map[string]*dbItem[T])
 		}
 	}

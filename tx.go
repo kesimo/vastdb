@@ -123,51 +123,7 @@ func (tx *Tx[T]) Commit() error {
 		return ErrTxNotWritable
 	}
 	var err error
-	if tx.db.persist && (len(tx.wc.commitItems) > 0 || tx.wc.rbKeys != nil) {
-		tx.db.buf = tx.db.buf[:0]
-		// write a flushdb if a deleteAll was called.
-		if tx.wc.rbKeys != nil {
-			tx.db.buf = append(tx.db.buf, "*1\r\n$7\r\nflushdb\r\n"...)
-		}
-		now := time.Now()
-		// Each committed record is written to disk
-		for key, item := range tx.wc.commitItems {
-			if item == nil {
-				tx.db.buf = (&dbItem[T]{key: key}).writeDeleteTo(tx.db.buf)
-			} else {
-				tx.db.buf = item.writeSetTo(tx.db.buf, now, tx.db.isBiType)
-			}
-		}
-		// Flushing the buffer only once per transaction.
-		// If this operation fails then also write failed, and we must
-		// roll back.
-		var n int
-		n, err = tx.db.file.Write(tx.db.buf)
-		if err != nil {
-			if n > 0 {
-				// There was a partial write to disk.
-				// We are possibly out of disk space.
-				// Delete the partially written bytes from the data file by
-				// seeking to the previously known position and performing
-				// a truncate operation.
-				// At this point a syscall failure is fatal and the process
-				// should be killed to avoid corrupting the file.
-				pos, err := tx.db.file.Seek(-int64(n), 1)
-				if err != nil {
-					_ = panicErr(err)
-				}
-				if err := tx.db.file.Truncate(pos); err != nil {
-					_ = panicErr(err)
-				}
-			}
-			tx.rollbackInner()
-		}
-		if tx.db.config.SyncPolicy == Always {
-			_ = tx.db.file.Sync()
-		}
-		// Increment the number of flushes. The background syncing uses this.
-		tx.db.flushes++
-	}
+	err = tx.db.persistence.txCommit(tx, err)
 	// Unlock the database and allow for another writable transaction.
 	tx.unlock()
 	// Clear the db field to disable this transaction from future use.
@@ -280,7 +236,7 @@ func (tx *Tx[T]) Set(key string, value T, opts *SetOptions) (previous *T,
 	}
 	// For commits, we simply assign the item to the map. We use this map to
 	// write the entry to disk.
-	if tx.db.persist {
+	if tx.db.persistence.isActive {
 		tx.wc.commitItems[key] = item
 	}
 	return previousValue, replaced, nil
@@ -329,7 +285,7 @@ func (tx *Tx[T]) Delete(key string) (val *T, err error) {
 			tx.wc.rollbackItems[key] = item
 		}
 	}
-	if tx.db.persist {
+	if tx.db.persistence.isActive {
 		tx.wc.commitItems[key] = nil
 	}
 	// Even though the item has been deleted, we still want to check
