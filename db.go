@@ -236,7 +236,6 @@ func (db *DB[T]) Close() error {
 		return ErrDatabaseClosed
 	}
 	db.closed = true
-	// TODO: replace with persistence.Close
 	err := db.persistence.Close()
 	if err != nil && err != ErrSyncFile {
 		// ignore sync error and close file
@@ -247,13 +246,10 @@ func (db *DB[T]) Close() error {
 	return nil
 }
 
-//TODO rename "snapshot" and properly outsource
-
-// Save writes a snapshot of the database to a writer. This operation blocks all
+// Snapshot writes a snapshot of the database to a writer. This operation blocks all
 // writes, but not reads. This can be used for snapshots and backups for pure
-// in-memory databases using the ":memory:". Database that persist to disk
-// can be snapshotted by simply copying the database file.
-func (db *DB[T]) Save(wr io.Writer) error {
+// in-memory databases. For persistent databases, the database file can be copied
+func (db *DB[T]) Snapshot(wr io.Writer) error {
 	var err error
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -288,8 +284,7 @@ func (db *DB[T]) Save(wr io.Writer) error {
 }
 
 // Load loads commands from reader. This operation blocks all reads and writes.
-// Note that this can only work for fully in-memory databases opened with
-// Open(":memory:").
+// Note that this can only work for fully in-memory databases
 func (db *DB[T]) Load(rd io.Reader) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -297,7 +292,6 @@ func (db *DB[T]) Load(rd io.Reader) error {
 		// cannot load into databases that persist to disk
 		return ErrPersistenceActive
 	}
-	// TODO: replace with persistence.RLoad
 	_, err := db.persistence.LoadFromReader(rd, time.Now())
 	return err
 }
@@ -534,7 +528,6 @@ func (db *DB[T]) backgroundManager() {
 			defer db.mu.Unlock()
 			if db.persistence.isActive && db.config.SyncPolicy == EverySecond &&
 				flushes != db.persistence.flushes {
-				// TODO: Use persistence.Sync
 				_ = db.persistence.FileSync()
 				flushes = db.persistence.flushes
 			}

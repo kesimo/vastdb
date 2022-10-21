@@ -363,8 +363,6 @@ func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop Pi
 	var itemA, itemB *dbItem[T]
 	if gt || lt {
 		if index == "" {
-			//return fmt.Errorf("cannot use greaterThan or lessThan with keys")
-			//TODO check if sth missing here
 			itemA = &dbItem[T]{key: start.k}
 			itemB = &dbItem[T]{key: stop.k}
 		} else {

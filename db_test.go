@@ -163,7 +163,7 @@ func TestDB_SaveLoad(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if err := db.Save(f); err != nil {
+	if err := db.Snapshot(f); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.Close(); err != nil {
@@ -232,7 +232,7 @@ func TestDB_SaveLoadExceedBuffer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	err = db.Save(f)
+	err = db.Snapshot(f)
 	if err != nil {
 		t.Errorf("error saving db: %v", err)
 	}
@@ -737,11 +737,11 @@ func TestDB_String(t *testing.T) {
 	}
 	defer db.Close()
 	//check length of db
-	len, err := db.Len()
+	length, err := db.Len()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("db len: %d", len)
+	t.Logf("db length: %d", length)
 
 	if err := db.Update(func(tx *Tx[string]) error {
 		key := fmt.Sprintf("key%d", rand.Int())
@@ -755,12 +755,12 @@ func TestDB_String(t *testing.T) {
 		t.Fatal(err)
 	}
 	//check length of db
-	len, err = db.Len()
+	length, err = db.Len()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len != 1 {
-		t.Fatalf("expecting 11, got %d", len)
+	if length != 1 {
+		t.Fatalf("expecting 11, got %d", length)
 	}
 }
 
@@ -1231,11 +1231,11 @@ func TestTx_AscendRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	// check length of db
-	len, err := db.Len()
+	length, err := db.Len()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("db len: %d", len)
+	t.Logf("db length: %d", length)
 
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0

@@ -143,8 +143,6 @@ func (p *persistence[T]) Shrink() error {
 		return err
 	}
 	p.DB.mu.Unlock()
-	// TODO: Why ??
-	time.Sleep(time.Second / 4) // wait just a bit before starting
 	f, err := os.Create(tmp)
 	if err != nil {
 		return err
@@ -154,8 +152,7 @@ func (p *persistence[T]) Shrink() error {
 		_ = os.RemoveAll(tmp)
 	}()
 
-	// we are going to read items in as chunks as to not hold up the database
-	// for too long.
+	// we are going to read items in as chunks as to not hold up the database for too long.
 	var buf []byte
 	pivot := ""
 	done := false
