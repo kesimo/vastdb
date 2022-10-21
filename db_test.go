@@ -46,6 +46,39 @@ func testClose(db *DB[mock]) {
 	_ = os.RemoveAll("data.db")
 }
 
+func TestDB_Open(t *testing.T) {
+	// test using empty struct
+	db, err := Open("", struct{}{})
+	if err == nil {
+		t.Fatal("should not be able to open a database with an" +
+			" struct that does not export any fields")
+	}
+	if db != nil {
+		t.Fatal("expecting nil, got DB object")
+	}
+	// test using interface type
+	_, err = Open("", interface{}(nil))
+	if err == nil {
+		t.Fatal("should not be able to open a database with an" +
+			" interface type")
+	}
+	// test using pointer as value
+	_, err = Open("", &struct{ Key string }{Key: "hello"})
+	if err != nil {
+		t.Fatalf("should be able to open a database with a pointer as value: %v", err)
+	}
+	// test using slice as value
+	_, err = Open("", []struct{ Key string }{{Key: "hello"}})
+	if err != nil {
+		t.Fatalf("should be able to open a database with a slice as value: %v", err)
+	}
+	// test using map as value
+	_, err = Open("", map[string]struct{ Key string }{"hello": {Key: "hello"}})
+	if err != nil {
+		t.Fatalf("should be able to open a database with a map as value: %v", err)
+	}
+}
+
 func TestDB_BackgroundOperations(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -153,6 +186,93 @@ func TestDB_SaveLoad(t *testing.T) {
 				Key:       fmt.Sprintf("Key:%d", i),
 				Workspace: "ws1",
 				Num:       50,
+			}
+			val, err := tx.Get(fmt.Sprintf("Key:%d", i))
+			if err != nil {
+				return err
+			}
+			if ex != val {
+				if ex.Key != val.Key || ex.Workspace != val.Workspace || ex.Num != val.Num {
+					t.Fatalf("expected %v, got %v", ex, val)
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDB_SaveLoadExceedBuffer(t *testing.T) {
+	db, _ := Open("", mock{})
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 50000; i++ {
+			_, _, err := tx.Set(fmt.Sprintf("Key:%d", i), mock{
+				Key:       fmt.Sprintf("Key:%d", i),
+				Workspace: "ws1",
+				Num:       5034242342,
+			}, nil)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Create("temp.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		f.Close()
+		err := os.RemoveAll("temp.db")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	err = db.Save(f)
+	if err != nil {
+		t.Errorf("error saving db: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// test load in persistent db
+	db2, _ := Open("temp2.db", mock{})
+	defer func() {
+		db2.Close()
+		err := os.RemoveAll("temp2.db")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	f2, err := os.Open("temp.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	err2 := db2.Load(f2)
+	if err2 == nil {
+		t.Errorf("expecting error while loading into persistent db, got nil")
+	}
+
+	testClose(db)
+	db3, _ := Open(":memory:", mock{})
+	defer testClose(db3)
+	// read the file back in
+	f3, err := os.Open("temp.db")
+	err = db3.Load(f3)
+	if err != nil {
+		t.Errorf("error loading db: %v", err)
+	}
+	if err := db3.View(func(tx *Tx[mock]) error {
+		for i := 0; i < 50000; i++ {
+			ex := &mock{
+				Key:       fmt.Sprintf("Key:%d", i),
+				Workspace: "ws1",
+				Num:       5034242342,
 			}
 			val, err := tx.Get(fmt.Sprintf("Key:%d", i))
 			if err != nil {
@@ -426,7 +546,11 @@ func TestDB_Del(t *testing.T) {
 	if errNonExistingKey != ErrNotFound {
 		t.Fatalf("expecting NotFound error, got %v", errNonExistingKey)
 	}
-	//test del key
+	//test del key if index is set
+	err := db.CreateIndex("num", "*", func(a, b mock) bool { return a.Num < b.Num })
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, errSet := db.Set("key1", mock{
 		Key: "key",
 		Num: 50,
@@ -434,7 +558,7 @@ func TestDB_Del(t *testing.T) {
 	if errSet != nil {
 		t.Fatal(errSet)
 	}
-	_, err := db.Del("key1")
+	_, err = db.Del("key1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,6 +701,34 @@ func TestTx_SetGetDelete(t *testing.T) {
 	}
 }
 
+func TestTx_DeleteAll(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		_, _, err := tx.Set("keee1", mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Update(func(tx *Tx[mock]) error {
+		err := tx.DeleteAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	length, _ := db.Len()
+	if length != 0 {
+		t.Fatal("expecting 0 items, got ", length)
+	}
+}
+
 func TestDB_String(t *testing.T) {
 	str := "test"
 	db, err := Open[string](":memory:", str)
@@ -612,6 +764,32 @@ func TestDB_String(t *testing.T) {
 	}
 }
 
+func TestDB_ReadConfig(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	var config Config[mock]
+	if err := db.ReadConfig(&config); err != nil {
+		t.Fatal(err)
+	}
+	if config.SyncPolicy != 1 {
+		t.Fatal("expecting SyncPolicy 1, got ", config.SyncPolicy)
+	}
+}
+
+func TestDB_SetConfig(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	var config Config[mock]
+	if err := db.SetConfig(config); err != nil {
+		t.Fatal(err)
+	}
+	// test set invalid config
+	config.SyncPolicy = 3
+	if err := db.SetConfig(config); err != ErrInvalidSyncPolicy {
+		t.Fatal("expecting ErrInvalidSyncPolicy, got ", err)
+	}
+}
+
 func TestDB_CreateIndex(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -636,6 +814,88 @@ func TestDB_CreateIndex(t *testing.T) {
 		return tx.CreateIndex("", "a*", func(a, b mock) bool { return a.Num > b.Num })
 	}); err == nil || err != ErrIndexExists {
 		t.Fatalf("empty index name should error")
+	}
+	// create index with case in-sensitive key matching
+	if err := db.Update(func(tx *Tx[mock]) error {
+		return tx.CreateIndex("idx2", "a*", func(a, b mock) bool { return a.Num > b.Num })
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDB_DropIndex(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.CreateIndex("idx1", "*", func(a, b mock) bool { return a.Num < b.Num }); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// drop index should not error
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.DropIndex("idx1"); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// drop index that does not exist should error
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.DropIndex("idx1"); err == nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDB_ReplaceIndex(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.CreateIndex("idx1", "*", func(a, b mock) bool { return a.Num < b.Num }); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// replace index should not error
+	if err := db.ReplaceIndex("idx1", "a*", func(a, b mock) bool { return a.Num > b.Num }); err != nil {
+		t.Fatal(err)
+	}
+	// replace index that does not exist should error
+	if err := db.ReplaceIndex("idx2", "a*", func(a, b mock) bool { return a.Num > b.Num }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDB_Indexes(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		if err := tx.CreateIndex("idx1", "*", func(a, b mock) bool { return a.Num < b.Num }); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.CreateIndex("idx2", "*", func(a, b mock) bool { return a.Num > b.Num }); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// get indexes should not error
+	idxs, err := db.Indexes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(idxs) != 2 {
+		t.Fatalf("expecting 2 indexes, got %d", len(idxs))
 	}
 }
 

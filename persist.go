@@ -3,6 +3,7 @@ package vastdb
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"github.com/kesimo/vastdb/internal/tree"
 	"io"
 	"os"
@@ -19,6 +20,10 @@ var (
 	// ErrSyncFile is returned when the file cannot be synced.
 	ErrSyncFile = errors.New("file cannot be synced")
 )
+
+func panicErr(err error) error {
+	panic(fmt.Errorf("vastdb: %w", err))
+}
 
 type persistence[T any] struct {
 	DB                   *DB[T]

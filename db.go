@@ -55,10 +55,6 @@ var (
 	ErrEmptyKey = errors.New("empty key")
 )
 
-func panicErr(err error) error {
-	panic(fmt.Errorf("vastdb: %w", err))
-}
-
 // DB represents a collection of Key-value pairs that persist on disk.
 // Transactions are used for all forms of data access to the DB.
 type DB[T any] struct {
@@ -133,6 +129,12 @@ type exctx[T any] struct {
 func checkNoVisibleFields[T any](a T) error {
 	visibleFields := 0
 	rt := reflect.TypeOf(a) // take type of input
+	if rt == nil {
+		return fmt.Errorf("vastdb: type is nil")
+	}
+	if rt.Kind() == reflect.Interface {
+		return fmt.Errorf("vastdb: interface type %s is not supported", rt)
+	}
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem() // use Elem to get the pointed-to-type
 	}
@@ -142,15 +144,12 @@ func checkNoVisibleFields[T any](a T) error {
 	if rt.Kind() == reflect.Ptr { // handle input of type like []*StructType
 		rt = rt.Elem() // use Elem to get the pointed-to-type
 	}
+	if rt.Kind() == reflect.Map {
+		return nil
+	}
 	if rt.Kind() != reflect.Struct {
-		if rt.Kind() == reflect.Interface {
-			return fmt.Errorf("vastdb: interface type %s is not supported", rt)
-		}
 		if rt.Name() == "" {
 			return fmt.Errorf("vastdb: %v type is not supported", rt)
-		}
-		if rt.Kind() == reflect.Interface {
-			return fmt.Errorf("vastdb: interface type %s is not supported", rt)
 		}
 		return nil
 	}
