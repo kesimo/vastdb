@@ -1496,13 +1496,13 @@ func TestTx_Descend(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// check len of db
-	len, err := db.Len()
+	// check length of db
+	length, err := db.Len()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len != 10 {
-		t.Fatal("expecting 10, got ", len)
+	if length != 10 {
+		t.Fatal("expecting 10, got ", length)
 	}
 
 	if err := db.View(func(tx *Tx[mock]) error {

@@ -8,17 +8,6 @@ type mockType struct {
 	Num       int
 }
 
-func testCreateItem() *dbItem[mockType] {
-	return &dbItem[mockType]{
-		key: "hello",
-		val: mockType{
-			Key:       "key1",
-			Workspace: "ws1",
-			Num:       10,
-		},
-	}
-}
-
 // Test correctness of all item methods
 func TestValueToString(t *testing.T) {
 	// create a new dbItem

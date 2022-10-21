@@ -13,10 +13,6 @@ import (
 )
 
 var (
-	// ErrNoFile is returned when the file does not exist.
-	ErrNoFile = errors.New("file does not exist")
-	// ErrLoad is returned when the file cannot be loaded.
-	ErrLoad = errors.New("file cannot be loaded")
 	// ErrSyncFile is returned when the file cannot be synced.
 	ErrSyncFile = errors.New("file cannot be synced")
 )
@@ -446,8 +442,8 @@ func (p *persistence[T]) LoadFromReader(rd io.Reader, modTime time.Time) (n int6
 		} else if (parts[0][0] == 'f' || parts[0][0] == 'F') &&
 			strings.ToLower(parts[0]) == "flushdb" {
 			p.DB.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
-			p.DB.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{p.DB}))
-			p.DB.idxs = make(map[string]*index[T])
+			p.DB.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&expirationCtx[T]{p.DB}))
+			p.DB.indices = make(map[string]*index[T])
 		} else {
 			return totalSize, ErrInvalid
 		}

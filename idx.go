@@ -72,7 +72,10 @@ func (idx *index[T]) rebuild() {
 			return true
 		}
 		if idx.less != nil {
-			idx.btr.Set(&dbi)
+			_, err := idx.btr.Set(&dbi)
+			if err != nil {
+				return false
+			}
 		}
 		return true
 	})

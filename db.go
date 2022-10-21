@@ -62,8 +62,8 @@ type DB[T any] struct {
 	persistence *persistence[T]        // persistence layer
 	keys        tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
 	exps        tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
-	idxs        map[string]*index[T]   // the index trees.
-	insIdxs     []*index[T]            // a reuse buffer for gathering indexes
+	indices     map[string]*index[T]   // map containing all indices
+	insIndices  []*index[T]            // a reuse buffer for gathering indices
 	closed      bool                   // set when the database has been closed
 	config      Config[T]              // the database configuration
 	isBiType    bool                   // is the type T a builtin type
@@ -116,13 +116,13 @@ type Config[T any] struct {
 	// OnExpiredSync will be called inside the same transaction that is
 	// performing the deletion of expired items. If OnExpired is present then
 	// this callback will not be called. If this callback is present, then the
-	// deletion of the timeed-out item is the explicit responsibility of this
+	// deletion of the timed-out item is the explicit responsibility of this
 	// callback.
 	OnExpiredSync func(key string, value T, tx *Tx[T]) error
 }
 
-// exctx is a simple b-tree context for ordering by expiration.
-type exctx[T any] struct {
+// expirationCtx is a simple b-tree context for ordering by expiration.
+type expirationCtx[T any] struct {
 	db *DB[T]
 }
 
@@ -199,8 +199,8 @@ func Open[T any](path string, typeObject ...T) (*DB[T], error) {
 	db := &DB[T]{}
 	// initialize trees and indexes
 	db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
-	db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{db}))
-	db.idxs = make(map[string]*index[T])
+	db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&expirationCtx[T]{db}))
+	db.indices = make(map[string]*index[T])
 	// initialize default configuration
 	db.config = Config[T]{
 		SyncPolicy:           EverySecond,
@@ -242,7 +242,7 @@ func (db *DB[T]) Close() error {
 		return err
 	}
 	// set all references to nil in order to prevent later usage
-	db.keys, db.exps, db.idxs, db.persistence = nil, nil, nil, nil
+	db.keys, db.exps, db.indices, db.persistence = nil, nil, nil, nil
 	return nil
 }
 
@@ -394,8 +394,8 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 	}
 	var pdbi *dbItem[T]
 	// Generate a list of indexes that this item will be inserted in to.
-	idxs := db.insIdxs
-	for _, idx := range db.idxs {
+	idxs := db.insIndices
+	for _, idx := range db.indices {
 		if idx.match(item.key) {
 			idxs = append(idxs, idx)
 		}
@@ -430,7 +430,7 @@ func (db *DB[T]) insertIntoDatabase(item *dbItem[T]) *dbItem[T] {
 		idxs[i] = nil
 	}
 	// reuse the index list slice
-	db.insIdxs = idxs[:0]
+	db.insIndices = idxs[:0]
 	// we must return the previous item to the caller.
 	return pdbi
 }
@@ -448,7 +448,7 @@ func (db *DB[T]) deleteFromDatabase(item *dbItem[T]) *dbItem[T] {
 			// Remove it from the expires tree.
 			db.exps.Delete(&pdbi)
 		}
-		for _, idx := range db.idxs {
+		for _, idx := range db.indices {
 			if !idx.match(pdbi.key) {
 				continue
 			}

@@ -252,7 +252,7 @@ err := db.CreateIndex("num", "key:*",func(a, b *customItem) bool {
 
 For iterating over the database, you can use the `Ascend` and `Descend` methods.
 
-for Pivots, you have tu use a object of type `*vastdb.PivotKV[T]`
+for Pivots, you have tu use an object of type `*vastdb.PivotKV[T]`
 its a struct that contains the `key` and the `value` of the item
 and used for fallback in case the index is empty -> using the `k` property
 

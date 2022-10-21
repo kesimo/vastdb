@@ -47,16 +47,16 @@ func (tx *Tx[T]) DeleteAll() error {
 		// backup the live data for rollback
 		tx.wc.rbKeys = tx.db.keys
 		tx.wc.rbExps = tx.db.exps
-		tx.wc.rbIdxs = tx.db.idxs
+		tx.wc.rbIdxs = tx.db.indices
 	}
 
 	// now reset the live database trees
 	tx.db.keys = tree.NewGBtree[*dbItem[T]](lessCtx[T](nil))
-	tx.db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&exctx[T]{tx.db}))
-	tx.db.idxs = make(map[string]*index[T])
+	tx.db.exps = tree.NewGBtree[*dbItem[T]](lessCtx[T](&expirationCtx[T]{tx.db}))
+	tx.db.indices = make(map[string]*index[T])
 	// finally re-create the indexes
 	for name, idx := range tx.wc.rbIdxs {
-		tx.db.idxs[name] = idx.clearCopy()
+		tx.db.indices[name] = idx.clearCopy()
 	}
 	// always clear out the commits
 	tx.wc.commitItems = make(map[string]*dbItem[T])
@@ -87,7 +87,7 @@ func (tx *Tx[T]) rollbackInner() {
 	// rollback the deleteAll if needed
 	if tx.wc.rbKeys != nil {
 		tx.db.keys = tx.wc.rbKeys
-		tx.db.idxs = tx.wc.rbIdxs
+		tx.db.indices = tx.wc.rbIdxs
 		tx.db.exps = tx.wc.rbExps
 	}
 	for key, item := range tx.wc.rollbackItems {
@@ -99,12 +99,12 @@ func (tx *Tx[T]) rollbackInner() {
 		}
 	}
 	for name, idx := range tx.wc.rollbackIndexes {
-		delete(tx.db.idxs, name)
+		delete(tx.db.indices, name)
 		if idx != nil {
 			// When an index is not nil, we will need to rebuilt that index
 			// this could be an expensive process if the database has many
 			// items or the index is complex.
-			tx.db.idxs[name] = idx
+			tx.db.indices[name] = idx
 			idx.rebuild()
 		}
 	}
@@ -171,7 +171,7 @@ func (tx *Tx[T]) GetLess(index string) (func(a, b T) bool, error) {
 	if tx.db == nil {
 		return nil, ErrTxClosed
 	}
-	idx, ok := tx.db.idxs[index]
+	idx, ok := tx.db.indices[index]
 	if !ok || idx.less == nil {
 		return nil, ErrNotFound
 	}
@@ -349,7 +349,7 @@ func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop Pi
 		// empty index means we will use the keys tree.
 		tr = tx.db.keys
 	} else {
-		idx := tx.db.idxs[index]
+		idx := tx.db.indices[index]
 		if idx == nil {
 			// index was not found. return error
 			return ErrNotFound
@@ -678,7 +678,7 @@ func (tx *Tx[T]) createIndex(name string, pattern string,
 		return ErrIndexExists
 	}
 	// check if index already exists
-	if _, ok := tx.db.idxs[name]; ok {
+	if _, ok := tx.db.indices[name]; ok {
 		return ErrIndexExists
 	}
 	// generate a less function
@@ -700,7 +700,7 @@ func (tx *Tx[T]) createIndex(name string, pattern string,
 	}
 	idx.rebuild()
 	// save the index
-	tx.db.idxs[name] = idx
+	tx.db.indices[name] = idx
 	if tx.wc.rbKeys == nil {
 		// store the index in the rollback map.
 		if _, ok := tx.wc.rollbackIndexes[name]; !ok {
@@ -725,13 +725,13 @@ func (tx *Tx[T]) DropIndex(name string) error {
 		// cannot drop the default "keys" index
 		return ErrInvalidOperation
 	}
-	idx, ok := tx.db.idxs[name]
+	idx, ok := tx.db.indices[name]
 	if !ok {
 		return ErrNotFound
 	}
 	// delete from the map.
 	// this is all that is needed to delete an index.
-	delete(tx.db.idxs, name)
+	delete(tx.db.indices, name)
 	if tx.wc.rbKeys == nil {
 		// store the index in the rollback map.
 		if _, ok := tx.wc.rollbackIndexes[name]; !ok {
@@ -748,8 +748,8 @@ func (tx *Tx[T]) Indexes() ([]string, error) {
 	if tx.db == nil {
 		return nil, ErrTxClosed
 	}
-	names := make([]string, 0, len(tx.db.idxs))
-	for name := range tx.db.idxs {
+	names := make([]string, 0, len(tx.db.indices))
+	for name := range tx.db.indices {
 		names = append(names, name)
 	}
 	sort.Strings(names)

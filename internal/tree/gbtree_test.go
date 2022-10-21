@@ -127,9 +127,9 @@ func TestGBTree_Get(t *testing.T) {
 	if prev != nil {
 		t.Errorf("Previous item should be nil")
 	}
-	len := tree.Len()
-	if len != 1 {
-		t.Errorf("Tree length should be 1, got %v", len)
+	length := tree.Len()
+	if length != 1 {
+		t.Errorf("Tree length should be 1, got %v", length)
 	}
 	itemGet := &dbItem[mockTestTree]{
 		key: "hello",

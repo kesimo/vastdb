@@ -85,9 +85,9 @@ func Benchmark_Set(b *testing.B) {
 		}
 	}
 	b.StopTimer()
-	len, _ := db.Len()
-	if len != b.N {
-		b.Errorf("expected %d, got %d", b.N, len)
+	length, _ := db.Len()
+	if length != b.N {
+		b.Errorf("expected %d, got %d", b.N, length)
 	}
 }
 

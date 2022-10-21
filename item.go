@@ -259,7 +259,7 @@ func (dbi *dbItem[_]) expiresAt() time.Time {
 // sharing the same item.
 func (dbi *dbItem[T]) Less(dbi2 *dbItem[T], ctx interface{}) bool {
 	switch ctx := ctx.(type) {
-	case *exctx[T]:
+	case *expirationCtx[T]:
 		// The expires b-tree formula
 		if dbi2.expiresAt().After(dbi.expiresAt()) {
 			return true
