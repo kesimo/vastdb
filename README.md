@@ -8,7 +8,7 @@
 <img src="https://img.shields.io/github/license/kesimo/vastdb?style=flat-square" alt="">
 <img src="https://img.shields.io/github/go-mod/go-version/kesimo/vastdb?style=flat-square" alt="">
 <img src="https://img.shields.io/github/v/release/kesimo/vastdb?style=flat-square" alt="">
-<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/Go?style=flat-square" alt="">
+<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/build-test?style=flat-square" alt="">
 
 </p>
 
