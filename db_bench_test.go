@@ -1,3 +1,10 @@
+// This file is part of the vastDB project.
+// Last modified : Kevin Eder
+// Creation date: 11.10.2022
+// License: MIT
+// Use of this source code is governed by a MIT license that can be found in the LICENSE file
+// at https://github.com/kesimo/vastdb/blob/main/LICENSE
+
 package vastdb
 
 import (

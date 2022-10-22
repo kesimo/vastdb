@@ -1,3 +1,10 @@
+// This file is part of the vastDB project.
+// Last modified : Kevin Eder
+// Creation date: 10.10.2022
+// License: MIT
+// Use of this source code is governed by a MIT license that can be found in the LICENSE file
+// at https://github.com/kesimo/vastdb/blob/main/LICENSE
+
 // Package vastDB implements a generic in-memory Key/value store
 // It persists to disk, is ACID compliant, has internal RW locking mechanisms,
 // and is optimized for speed and memory usage and supports multi-field indexing for Generic types
