@@ -1,6 +1,13 @@
-![image](docs/vastDB.png)
+<p align="center">
+  <img height="100" src="docs/vastdb-logo.svg">
+</p>
+<h1 align="center">vastDB</h1>
+<p align="center">Embedded high-performance Key-Value store with custom indexing written in Go.</p>
 
-# vastDB
+
+
+
+## Description
 
 **vastDB** is a generic and [performance](#performance) focused ACID key-Value Store with custom indexing.
 It's basically a modified Version of [buntdb](https://github.com/tidwall/buntdb) 
