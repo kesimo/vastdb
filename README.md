@@ -3,7 +3,14 @@
 </p>
 <h1 align="center">vastDB</h1>
 <p align="center">Embedded high-performance Key-Value store with custom indexing written in Go.</p>
+<p align="center">
+<img src="https://goreportcard.com/badge/github.com/kesimo/vastdb?style=flat-square" alt="">
+<img src="https://img.shields.io/github/license/kesimo/vastdb?style=flat-square" alt="">
+<img src="https://img.shields.io/github/go-mod/go-version/kesimo/vastdb?style=flat-square" alt="">
+<img src="https://img.shields.io/github/v/release/kesimo/vastdb?style=flat-square" alt="">
+<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/Go?style=flat-square" alt="">
 
+</p>
 
 
 

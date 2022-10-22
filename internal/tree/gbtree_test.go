@@ -163,7 +163,7 @@ func TestGBTree_Get(t *testing.T) {
 		t.Errorf("should no be okay if no item for key found")
 	}
 	if notStored != nil {
-		t.Errorf("Item recived from Get should be nil if not found")
+		t.Errorf("Item received from Get should be nil if not found")
 	}
 
 }
