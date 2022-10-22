@@ -7,7 +7,7 @@
 
 
 
-## Description
+## 🪧 Description
 
 **vastDB** is a generic and [performance](#performance) focused ACID key-Value Store with custom indexing.
 It's basically a modified Version of [buntdb](https://github.com/tidwall/buntdb) 
@@ -21,9 +21,8 @@ indexing on string values or on json fields (reduces performance significant).
 It's not meant to be a replacement for
 a full-blown database, but rather a tool to store and lookup data in a fast and easy way.
 
-## Features
+## 🎉 Features
 
----
 
 - In-memory database for fast reads and writes
 - Embeddable with a simple API
@@ -36,9 +35,8 @@ a full-blown database, but rather a tool to store and lookup data in a fast and 
 - Persisting with Append-Only-File (AOF) and Snapshotting (Always, every x seconds, never)
 - Thread safe
 
-## table of contents
+## 📚 Table of contents
 
----
 
 - [Installation](#installation)
 - [Usage](#usage)
@@ -53,9 +51,8 @@ a full-blown database, but rather a tool to store and lookup data in a fast and 
 - [Performance](#performance)
 - [License](#license)
 
-## Installation
+## 📥 Installation
 
----
 
 add to your project with
 
@@ -69,13 +66,11 @@ import with
 import "github.com/kesimo/vastdb"
 ```
 
-## Usage
+## 📜 Usage
 
----
 
 ### Open a database
 
----
 
 ```go
 package main
@@ -101,7 +96,6 @@ defer db.Close()
 
 ### Configuring the database
 
----
 
 ```go
 // [...]
@@ -137,7 +131,6 @@ db.SetConfig(config)
 
 ### Inserting data
 
----
 Insert Data into the database by passing in a key and a value of the custom struct.
 If the key already exists, the value will be overwritten and the old value will be returned.
 
@@ -159,7 +152,7 @@ prev, err := db.SetWithTTL("keyA", mockExt{
 
 ### Reading data
 
----
+
 Read data from the database by passing in a key. 
 The value will be returned as a pointer to the custom struct.
 If the key does not exist, the returned pointer will be nil.
@@ -189,7 +182,6 @@ if item.ID != "id1" {
 
 ### Deleting data
 
----
 Delete data from the database by passing in a key.
 The deleted value will be returned as a pointer to the custom struct.
 
@@ -288,7 +280,7 @@ err := db.View(func(tx *Tx[mock]) error {
 })
 ```
 
-Avaliable methods are:
+Available methods are:
 
 | Method                                                 | Usage                                                                                     |
 |--------------------------------------------------------|-------------------------------------------------------------------------------------------|
@@ -306,9 +298,8 @@ Avaliable methods are:
 | DescendEqual(index, eq PivotKV, iterator)              | Equal to "AscendEqual", but in descend order                                              |
 
 
-### Performance
+## ⏱ Performance
 
----
 
 The performance of the database is heavily dependent on the performance of the comparator function
 and the usage of indexes.
@@ -339,7 +330,7 @@ BenchmarkTx_Get_Random-8         1347905          876.1 ns/op
 BenchmarkTx_Get_Parallel-8      13910053          85.15 ns/op
 ```
 
-### License
+## License
 
 ---
 
