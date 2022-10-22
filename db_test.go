@@ -63,17 +63,17 @@ func TestDB_Open(t *testing.T) {
 			" interface type")
 	}
 	// test using pointer as value
-	_, err = Open("", &struct{ Key string }{Key: "hello"})
+	_, err = Open("", &struct{ Key string }{Key: "test"})
 	if err != nil {
 		t.Fatalf("should be able to open a database with a pointer as value: %v", err)
 	}
 	// test using slice as value
-	_, err = Open("", []struct{ Key string }{{Key: "hello"}})
+	_, err = Open("", []struct{ Key string }{{Key: "test"}})
 	if err != nil {
 		t.Fatalf("should be able to open a database with a slice as value: %v", err)
 	}
 	// test using map as value
-	_, err = Open("", map[string]struct{ Key string }{"hello": {Key: "hello"}})
+	_, err = Open("", map[string]struct{ Key string }{"test": {Key: "test"}})
 	if err != nil {
 		t.Fatalf("should be able to open a database with a map as value: %v", err)
 	}
@@ -85,8 +85,8 @@ func TestDB_BackgroundOperations(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if err := db.Update(func(tx *Tx[mock]) error {
 			for j := 0; j < 200; j++ {
-				if _, _, err := tx.Set(fmt.Sprintf("hello%d", j), mock{
-					Key:       "hello" + strconv.Itoa(j),
+				if _, _, err := tx.Set(fmt.Sprintf("test%d", j), mock{
+					Key:       "test" + strconv.Itoa(j),
 					Workspace: "ws2",
 					Num:       50,
 				}, nil); err != nil {

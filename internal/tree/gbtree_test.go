@@ -40,7 +40,7 @@ func TestGBTree_New(t *testing.T) {
 func TestGBTree_Set(t *testing.T) {
 	tree := testCreateGBTree()
 	item := &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 		val: mockTestTree{
 			Key: "key1",
 			Num: 10,
@@ -65,7 +65,7 @@ func TestGBTree_Set(t *testing.T) {
 	}
 	//overwrite existing item and check previous
 	item = &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 		val: mockTestTree{
 			Key: "key1",
 			Num: 12,
@@ -89,7 +89,7 @@ func TestGBTree_Len(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -112,7 +112,7 @@ func TestGBTree_Len(t *testing.T) {
 func TestGBTree_Get(t *testing.T) {
 	tree := testCreateGBTree()
 	item := &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 		val: mockTestTree{
 			Key: "key1",
 			Num: 10,
@@ -132,7 +132,7 @@ func TestGBTree_Get(t *testing.T) {
 		t.Errorf("Tree length should be 1, got %v", length)
 	}
 	itemGet := &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 	}
 	fromTree, _ := tree.Get(&itemGet)
 	if fromTree == nil {
@@ -164,7 +164,7 @@ func TestGBTree_Get(t *testing.T) {
 func TestGBTree_Delete(t *testing.T) {
 	tree := testCreateGBTree()
 	item := &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 		val: mockTestTree{
 			Key: "key1",
 			Num: 10,
@@ -178,7 +178,7 @@ func TestGBTree_Delete(t *testing.T) {
 
 	// delete item
 	itemToDel := &dbItem[mockTestTree]{
-		key: "hello",
+		key: "test",
 	}
 	deleted, err := tree.Delete(&itemToDel)
 	if err != nil {
@@ -216,7 +216,7 @@ func TestGBTree_Walk(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -228,7 +228,7 @@ func TestGBTree_Walk(t *testing.T) {
 	}
 	tree.Walk(func(items []*dbItem[mockTestTree]) {
 		for idx, item := range items {
-			if item.key != "hello"+strconv.Itoa(idx) {
+			if item.key != "test"+strconv.Itoa(idx) {
 				t.Errorf("Items should be in order")
 			}
 		}
@@ -246,7 +246,7 @@ func TestGBTree_Ascend(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -258,7 +258,7 @@ func TestGBTree_Ascend(t *testing.T) {
 	}
 	curr := 0
 	tree.Ascend(func(item *dbItem[mockTestTree]) bool {
-		if item.key != "hello"+strconv.Itoa(curr) {
+		if item.key != "test"+strconv.Itoa(curr) {
 			t.Errorf("Items should be in order")
 		}
 		curr++
@@ -275,7 +275,7 @@ func TestGBTree_AscendLT(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -286,12 +286,12 @@ func TestGBTree_AscendLT(t *testing.T) {
 		tree.Set(&item)
 	}
 	lt := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.AscendLT(&lt, func(item *dbItem[mockTestTree]) bool {
-		if item.key >= "hello5" {
-			t.Errorf("Items should be less than hello5, got %v", item.key)
+		if item.key >= "test5" {
+			t.Errorf("Items should be less than test5, got %v", item.key)
 		}
 		curr++
 		return true
@@ -312,7 +312,7 @@ func TestGBTree_AscendGTE(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -323,12 +323,12 @@ func TestGBTree_AscendGTE(t *testing.T) {
 		tree.Set(&item)
 	}
 	gte := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.AscendGTE(&gte, func(item *dbItem[mockTestTree]) bool {
-		if item.key < "hello5" {
-			t.Errorf("Items should be greater than hello5, got %v", item.key)
+		if item.key < "test5" {
+			t.Errorf("Items should be greater than test5, got %v", item.key)
 		}
 		curr++
 		return true
@@ -353,7 +353,7 @@ func TestGBTree_AscendRange(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -364,17 +364,17 @@ func TestGBTree_AscendRange(t *testing.T) {
 		tree.Set(&item)
 	}
 	lt := &dbItem[mockTestTree]{
-		key: "hello9",
+		key: "test9",
 	}
 	gte := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.AscendRange(&gte, &lt, func(item *dbItem[mockTestTree]) bool {
-		if item.key < "hello5" || item.key >= "hello9" {
+		if item.key < "test5" || item.key >= "test9" {
 			t.Errorf("Items should be in range, got %v", item.key)
 		}
-		if item.key != "hello"+strconv.Itoa(curr+5) {
+		if item.key != "test"+strconv.Itoa(curr+5) {
 			t.Errorf("Items should be in order")
 		}
 		curr++
@@ -427,7 +427,7 @@ func TestGBTree_Descend(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -439,7 +439,7 @@ func TestGBTree_Descend(t *testing.T) {
 	}
 	curr := 9
 	tree.Descend(func(item *dbItem[mockTestTree]) bool {
-		if item.key != "hello"+strconv.Itoa(curr) {
+		if item.key != "test"+strconv.Itoa(curr) {
 			t.Errorf("Items should be in order")
 		}
 		curr--
@@ -456,7 +456,7 @@ func TestGBTree_DescendGT(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -467,12 +467,12 @@ func TestGBTree_DescendGT(t *testing.T) {
 		tree.Set(&item)
 	}
 	gt := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.DescendGT(&gt, func(item *dbItem[mockTestTree]) bool {
-		if item.key <= "hello5" {
-			t.Errorf("Items should be greater than hello5, got %v", item.key)
+		if item.key <= "test5" {
+			t.Errorf("Items should be greater than test5, got %v", item.key)
 		}
 		curr++
 		return true
@@ -497,7 +497,7 @@ func TestGBTree_DescendLTE(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -508,11 +508,11 @@ func TestGBTree_DescendLTE(t *testing.T) {
 		tree.Set(&item)
 	}
 	lte := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.DescendLTE(&lte, func(item *dbItem[mockTestTree]) bool {
-		if item.key > "hello5" {
+		if item.key > "test5" {
 			t.Errorf("Item should be less than pivot")
 		}
 		curr++
@@ -534,7 +534,7 @@ func TestGBTree_DescendRange(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -545,18 +545,18 @@ func TestGBTree_DescendRange(t *testing.T) {
 		tree.Set(&item)
 	}
 	lte := &dbItem[mockTestTree]{
-		key: "hello9",
+		key: "test9",
 	}
 	gt := &dbItem[mockTestTree]{
-		key: "hello5",
+		key: "test5",
 	}
 	curr := 0
 	tree.DescendRange(&lte, &gt, func(item *dbItem[mockTestTree]) bool {
-		if item.key > "hello9" || item.key <= "hello5" {
+		if item.key > "test9" || item.key <= "test5" {
 
 			t.Errorf("Items should be in range gt < i <= lte")
 		}
-		if item.key != "hello"+strconv.Itoa(9-curr) {
+		if item.key != "test"+strconv.Itoa(9-curr) {
 			t.Errorf("Items should be in order")
 		}
 		curr++
@@ -602,7 +602,7 @@ func TestGBTree_Max(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -616,7 +616,7 @@ func TestGBTree_Max(t *testing.T) {
 	if !ok {
 		t.Errorf("failed to get Max item")
 	}
-	if (*max).key != "hello9" {
+	if (*max).key != "test9" {
 		t.Errorf("wrong max item")
 	}
 	// test with empty tree
@@ -631,7 +631,7 @@ func TestGBTree_Min(t *testing.T) {
 	tree := testCreateGBTree()
 	for i := 0; i < 10; i++ {
 		item := &dbItem[mockTestTree]{
-			key: "hello" + strconv.Itoa(i),
+			key: "test" + strconv.Itoa(i),
 			val: mockTestTree{
 				Key: "key1",
 				Num: 10,
@@ -645,7 +645,7 @@ func TestGBTree_Min(t *testing.T) {
 	if !ok {
 		t.Errorf("failed to get Max item")
 	}
-	if (*min).key != "hello0" {
+	if (*min).key != "test0" {
 		t.Errorf("wrong max item")
 	}
 	// test with empty tree

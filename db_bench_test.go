@@ -73,8 +73,8 @@ func Benchmark_Set(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(i)
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello" + iStr,
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test" + iStr,
 				Workspace: "ws2",
 				Num:       50,
 				Boolean:   false,
@@ -107,8 +107,8 @@ func Benchmark_Set_1_index(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(i)
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello" + iStr,
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test" + iStr,
 				Workspace: "ws2",
 				Num:       50,
 				Boolean:   false,
@@ -135,8 +135,8 @@ func Benchmark_Set_2_index(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(i)
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello" + iStr,
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test" + iStr,
 				Workspace: "ws2",
 				Num:       50,
 				Boolean:   false,
@@ -163,8 +163,8 @@ func Benchmark_Set_3_index(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(i)
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello" + iStr,
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test" + iStr,
 				Workspace: "ws2",
 				Num:       50,
 				Boolean:   false,
@@ -186,8 +186,8 @@ func Benchmark_Set_Random(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(rand.Int())
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello",
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test",
 				Workspace: "ws2",
 				Num:       i,
 				Boolean:   false,
@@ -225,8 +225,8 @@ func BenchmarkPersistTx_Set(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		iStr := strconv.Itoa(i)
 		if err := db.Update(func(tx *Tx[mockB]) error {
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello" + iStr,
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test" + iStr,
 				Workspace: "ws2" + iStr,
 				Num:       50,
 				Boolean:   false,
@@ -250,7 +250,7 @@ func BenchmarkTx_Get(b *testing.B) {
 	for i := 0; i < 100000; i++ {
 		if err := db.Update(func(tx *Tx[mockB]) error {
 			_, _, err := tx.Set("key"+strconv.Itoa(i), mockB{
-				Key:       "hello",
+				Key:       "test",
 				Workspace: "ws1",
 				Num:       50,
 				Boolean:   false,
@@ -285,8 +285,8 @@ func BenchmarkTx_Get_Random(b *testing.B) {
 	if err := db.Update(func(tx *Tx[mockB]) error {
 		for i := 0; i < 100000; i++ {
 			iStr := strconv.Itoa(i)
-			_, _, err := tx.Set("hello"+iStr, mockB{
-				Key:       "hello",
+			_, _, err := tx.Set("test"+iStr, mockB{
+				Key:       "test",
 				Workspace: "ws1",
 				Num:       50,
 				Boolean:   false,
@@ -302,7 +302,7 @@ func BenchmarkTx_Get_Random(b *testing.B) {
 	b.ResetTimer()
 	if err := db.View(func(tx *Tx[mockB]) error {
 		for i := 0; i < b.N; i++ {
-			_, _ = tx.Get("hello"+strconv.Itoa(rand.Int()%100000), true)
+			_, _ = tx.Get("test"+strconv.Itoa(rand.Int()%100000), true)
 		}
 		return nil
 	}); err != nil {
@@ -324,8 +324,8 @@ func BenchmarkTx_Get_Parallel(b *testing.B) {
 	}
 
 	if err := db.Update(func(tx *Tx[mockB]) error {
-		_, _, err := tx.Set("hello", mockB{
-			Key:       "hello",
+		_, _, err := tx.Set("test", mockB{
+			Key:       "test",
 			Workspace: "ws1",
 			Num:       50,
 			Boolean:   false,
@@ -338,7 +338,7 @@ func BenchmarkTx_Get_Parallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			if err := db.View(func(tx *Tx[mockB]) error {
-				_, err := tx.Get("hello", true)
+				_, err := tx.Get("test", true)
 				return err
 			}); err != nil {
 				b.Fatal(err)

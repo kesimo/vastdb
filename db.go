@@ -44,8 +44,7 @@ var (
 	// ErrShrinkInProcess is returned when a shrink operation is in-process.
 	ErrShrinkInProcess = errors.New("shrink is in-process")
 
-	// ErrPersistenceActive is returned when post-loading data from an database
-	// not opened with Open(":memory:").
+	// ErrPersistenceActive is returned when post-loading data from an only on-memory database
 	ErrPersistenceActive = errors.New("persistence active")
 
 	// ErrTxIterating is returned when Set or Delete are called while iterating.
