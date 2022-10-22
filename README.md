@@ -7,9 +7,8 @@
 <img src="https://goreportcard.com/badge/github.com/kesimo/vastdb?style=flat-square" alt="">
 <img src="https://img.shields.io/github/license/kesimo/vastdb?style=flat-square" alt="">
 <img src="https://img.shields.io/github/go-mod/go-version/kesimo/vastdb?style=flat-square" alt="">
-<img src="https://img.shields.io/github/v/release/kesimo/vastdb?style=flat-square" alt="">
-<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/build-test?style=flat-square" alt="">
-
+<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/test?style=flat-square&label=test" alt="">
+<img src="https://img.shields.io/github/workflow/status/kesimo/vastdb/build?style=flat-square" alt="">
 </p>
 
 
