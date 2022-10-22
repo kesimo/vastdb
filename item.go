@@ -53,13 +53,13 @@ func valueToString[T any](val T, bi ...bool) (string, error) {
 	case uint:
 		return strconv.Itoa(int(v)), nil
 	case uint8:
-		return strconv.Itoa(int(v)), nil
+		return strconv.FormatUint(uint64(v), 10), nil
 	case uint16:
-		return strconv.Itoa(int(v)), nil
+		return strconv.FormatUint(uint64(v), 10), nil
 	case uint32:
-		return strconv.Itoa(int(v)), nil
+		return strconv.FormatUint(uint64(v), 10), nil
 	case uint64:
-		return strconv.Itoa(int(v)), nil
+		return strconv.FormatUint(v, 10), nil
 	case float32:
 		return strconv.FormatFloat(float64(v), 'f', -1, 32), nil
 	case float64:
@@ -89,41 +89,73 @@ func valueFromString[T any](val string, out T) error {
 	case *[]byte:
 		*v = []byte(val)
 	case *int:
-		i, _ := strconv.Atoi(val)
-		*v = i
+		i, err := strconv.ParseInt(val, 10, 0)
+		if err != nil {
+			return err
+		}
+		*v = int(i)
 	case *int8:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseInt(val, 10, 8)
+		if err != nil {
+			return err
+		}
 		*v = int8(i)
 	case *int16:
-		i, _ := strconv.Atoi(val)
-
+		i, err := strconv.ParseInt(val, 10, 16)
+		if err != nil {
+			return err
+		}
 		*v = int16(i)
 	case *int32:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return err
+		}
 		*v = int32(i)
 	case *int64:
 		i, _ := strconv.Atoi(val)
 		*v = int64(i)
 	case *uint:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseUint(val, 10, 0)
+		if err != nil {
+			return err
+		}
 		*v = uint(i)
 	case *uint8:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseUint(val, 10, 8)
+		if err != nil {
+			return err
+		}
 		*v = uint8(i)
 	case *uint16:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseUint(val, 10, 16)
+		if err != nil {
+			return err
+		}
 		*v = uint16(i)
 	case *uint32:
-		i, _ := strconv.Atoi(val)
+		i, err := strconv.ParseUint(val, 10, 32)
+		if err != nil {
+			return err
+		}
 		*v = uint32(i)
 	case *uint64:
-		i, _ := strconv.Atoi(val)
-		*v = uint64(i)
+		i, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		*v = i
 	case *float32:
-		f, _ := strconv.ParseFloat(val, 32)
+		f, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return err
+		}
 		*v = float32(f)
 	case *float64:
-		f, _ := strconv.ParseFloat(val, 64)
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return err
+		}
 		*v = f
 	case *bool:
 		if val == "1" {
