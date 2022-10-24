@@ -23,6 +23,14 @@ type mock struct {
 	Num       int    `json:"Num"`
 }
 
+// wait until the next second with zero milliseconds and nanoseconds reached
+func testWaitZeroSecond() {
+	now := time.Now()
+	for now.Nanosecond() > 0 || now.Nanosecond() > 0 {
+		now = time.Now()
+	}
+}
+
 func testOpen(t testing.TB) *DB[mock] {
 	if err := os.RemoveAll("data.db"); err != nil {
 		t.Fatal(err)
@@ -83,6 +91,26 @@ func TestDB_Open(t *testing.T) {
 	_, err = Open("", map[string]struct{ Key string }{"test": {Key: "test"}})
 	if err != nil {
 		t.Fatalf("should be able to open a database with a map as value: %v", err)
+	}
+	// test using interface as value -> should fail
+	_, err = Open("", interface{}(struct{ Key string }{Key: "test"}))
+	if err == nil {
+		t.Fatal("should not be able to open a database with an interface as value:")
+	}
+	// test using struct with pointers as value
+	_, err = Open("", struct{ Key *string }{Key: new(string)})
+	if err != nil {
+		t.Fatalf("should be able to open a database with a struct with pointers as value: %v", err)
+	}
+	// test using slice with pointers as value
+	_, err = Open("", []*mock{})
+	if err != nil {
+		t.Fatalf("should be able to open a database with a slice with pointers as value: %v", err)
+	}
+	// test using multiple values
+	_, err = Open("", struct{ Key string }{Key: "test"}, struct{ Key string }{Key: "test"})
+	if err != nil {
+		t.Fatalf("should be able to open a database with multiple values: %v", err)
 	}
 }
 
@@ -478,6 +506,67 @@ func TestDB_SetWithTTL(t *testing.T) {
 	}
 }
 
+func TestDB_OnExpired(t *testing.T) {
+	testWaitZeroSecond()
+	db := testOpen(t)
+	defer testClose(db)
+	// apply expires function
+	db.SetConfig(Config[mock]{
+		OnExpired: func(keys []string) {
+			if len(keys) != 10 {
+				t.Errorf("OnExpired: expecting 10 keys, got %v", len(keys))
+			}
+		},
+	})
+	//test set ttl
+	for i := 0; i < 10; i++ {
+		_, err := db.Set(fmt.Sprintf("key-ttl-%d", i), mock{Key: fmt.Sprintf("key-ttl-%d", i)}, &SetOptions{TTL: 0, Expires: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(time.Millisecond * 4000)
+	l, err := db.Len()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l != 10 {
+		t.Errorf("Should not delete items when overwriting onExpires Function: expecting 10 items, got %v", l)
+	}
+}
+
+// WARNING: this test is not deterministic, it may fail sometimes, b.c. it depends on the GC timing.
+func TestDB_OnExpiredSync(t *testing.T) {
+	testWaitZeroSecond()
+	db := testOpen(t)
+	defer testClose(db)
+	onExpSyncCount := 0
+	mu := sync.Mutex{}
+	// apply expires function
+	db.SetConfig(Config[mock]{
+		OnExpiredSync: func(key string, value mock, tx *Tx[mock]) error {
+			mu.Lock()
+			defer mu.Unlock()
+			onExpSyncCount = onExpSyncCount % 10
+			calcKey := fmt.Sprintf("key-ttl-%d", onExpSyncCount)
+			if key != calcKey || value.Key != calcKey {
+				t.Errorf("OnExpiredSync: expecting %s, got %v (val.key=%v)", calcKey, key, value.Key)
+			}
+			onExpSyncCount++
+
+			return nil
+		},
+	})
+	//test set ttl
+	for i := 0; i < 10; i++ {
+		_, err := db.Set(fmt.Sprintf("key-ttl-%d", i), mock{Key: fmt.Sprintf("key-ttl-%d", i)}, &SetOptions{TTL: time.Second * 2, Expires: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(time.Millisecond * 2500)
+}
+
 func TestDB_SetGetPreviousItem(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
@@ -797,9 +886,37 @@ func TestDB_SetConfig(t *testing.T) {
 	}
 }
 
-func TestDB_CreateIndex(t *testing.T) {
+func TestDB_DropIndex(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
+	db.CreateIndex("workspace", "*", func(a mock, b mock) bool {
+		return a.Workspace < b.Workspace
+	})
+	_, err := db.Set("keee1", mock{Key: "keee1", Workspace: "wss1", Num: 12}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = db.DropIndex("workspace")
+	if err != nil {
+		t.Fatalf("drop index should not fail: %s", err)
+	}
+}
+
+func TestTx_CreateIndex(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	// fill db
+	for i := 0; i < 10; i++ {
+		_, err := db.Set(fmt.Sprintf("a%d", i), mock{Key: fmt.Sprintf("key%d", i), Workspace: fmt.Sprintf("wss%d", i), Num: i}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.Set(fmt.Sprintf("A%d", i+10), mock{Key: fmt.Sprintf("key%d", i), Workspace: fmt.Sprintf("wss%d", i), Num: i}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	// create basic index should not error
 	if err := db.Update(func(tx *Tx[mock]) error {
 		if err := tx.CreateIndex("idx1", "*", func(a, b mock) bool { return a.Num < b.Num }); err != nil {
@@ -824,13 +941,21 @@ func TestDB_CreateIndex(t *testing.T) {
 	}
 	// create index with case in-sensitive key matching
 	if err := db.Update(func(tx *Tx[mock]) error {
-		return tx.CreateIndex("idx2", "a*", func(a, b mock) bool { return a.Num > b.Num })
+		return tx.CreateIndexOptions("idx2", "a*", &IndexOptions{CaseInsensitiveKeyMatching: true}, func(a, b mock) bool { return a.Num > b.Num })
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// check index len
+	_ = db.View(func(tx *Tx[mock]) error {
+		l, _ := tx.IndexLen("idx2")
+		if l != 20 {
+			t.Fatal("expecting 20 items, got ", l)
+		}
+		return nil
+	})
 }
 
-func TestDB_DropIndex(t *testing.T) {
+func TestTx_DropIndex(t *testing.T) {
 	db := testOpen(t)
 	defer testClose(db)
 	if err := db.Update(func(tx *Tx[mock]) error {
@@ -1651,4 +1776,103 @@ func TestTx_TTLAfterReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Len
+
+func TestTx_Len(t *testing.T) {
+	db := testOpen(t)
+	defer testClose(db)
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			_, _, err := tx.Set(key, mock{Key: key, Workspace: "wss" + strconv.Itoa(i), Num: i}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// check length of db
+	err := db.View(func(tx *Tx[mock]) error {
+		n, err := tx.Len()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 10 {
+			t.Fatalf("expecting 10, got %d", n)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTx_IndexLen(t *testing.T) {
+	idxName := "idx1"
+	db := testOpen(t)
+	defer testClose(db)
+	db.CreateIndex(idxName, "idx*", func(a, b mock) bool {
+		return a.Num < b.Num
+	})
+	if err := db.Update(func(tx *Tx[mock]) error {
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%d", i)
+			_, _, err := tx.Set(key, mock{Key: key, Workspace: "wss" + strconv.Itoa(i), Num: i}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i := 0; i < 12; i++ {
+			key := fmt.Sprintf("idx%d", i)
+			_, _, err := tx.Set(key, mock{Key: key, Workspace: "wss" + strconv.Itoa(i), Num: i}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// check length of db
+	l, _ := db.Len()
+	if l != 22 {
+		t.Fatalf("expecting 22, got %d", l)
+	}
+	// check length of num index
+	err := db.View(func(tx *Tx[mock]) error {
+		n, err := tx.IndexLen(idxName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 12 {
+			t.Fatalf("expecting 12, got %d", n)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check length of invalid index
+	err = db.View(func(tx *Tx[mock]) error {
+		_, err := tx.IndexLen("invalid")
+		if err == nil {
+			t.Fatal("expecting error")
+		}
+		return nil
+	})
+	//check length of empty index
+	err = db.View(func(tx *Tx[mock]) error {
+		le, err := tx.IndexLen("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if le != l {
+			return nil
+		}
+		return nil
+	})
 }

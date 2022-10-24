@@ -170,9 +170,9 @@ type SetOptions struct {
 	TTL time.Duration
 }
 
-// GetLess returns the less function for an index. This is handy for
+// GetLess returns the comparator function for an index. This is handy for
 // doing ad-hoc compares inside a transaction.
-// Returns ErrNotFound if the index is not found or there is no less
+// Returns ErrNotFound if the index is not found or there is no comparator
 // function bound to the index
 func (tx *Tx[T]) GetLess(index string) (func(a, b T) bool, error) {
 	if tx.db == nil {
@@ -326,6 +326,8 @@ func (tx *Tx[_]) TTL(key string) (time.Duration, error) {
 }
 
 // PivotKV is a Key/value pair that is used to pivot a range of items.
+// The Key is used to find the item in the database by key and as fallback if no value is given
+// The Value is used to find the item in the database by value if an index is present
 type PivotKV[T any] struct {
 	k string
 	v T
@@ -483,9 +485,9 @@ func (tx *Tx[T]) DescendKeys(pattern string,
 }
 
 // Ascend calls the iterator for every item in the database within the range
-// [first, last], until iterator returns false.
+// until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) Ascend(index string,
@@ -496,7 +498,7 @@ func (tx *Tx[T]) Ascend(index string,
 // AscendGreaterOrEqual calls the iterator for every item in the database within
 // the range [pivot, last], until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) AscendGreaterOrEqual(index string, pivot PivotKV[T],
@@ -507,7 +509,7 @@ func (tx *Tx[T]) AscendGreaterOrEqual(index string, pivot PivotKV[T],
 // AscendLessThan calls the iterator for every item in the database within the
 // range [first, pivot), until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 // excluding the pivot
@@ -519,7 +521,7 @@ func (tx *Tx[T]) AscendLessThan(index string, lessThan PivotKV[T],
 // AscendRange calls the iterator for every item in the database within
 // the range [greaterOrEqual, lessThan), until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 //including greaterOrEqual, excluding lessThan
@@ -533,7 +535,7 @@ func (tx *Tx[T]) AscendRange(index string, greaterOrEqual, lessThan PivotKV[T],
 // Descend calls the iterator for every item in the database within the range
 // [last, first], until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) Descend(index string,
@@ -544,7 +546,7 @@ func (tx *Tx[T]) Descend(index string,
 // DescendGreaterThan calls the iterator for every item in the database within
 // the range [last, pivot), until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) DescendGreaterThan(index string, pivot PivotKV[T],
@@ -555,7 +557,7 @@ func (tx *Tx[T]) DescendGreaterThan(index string, pivot PivotKV[T],
 // DescendLessOrEqual calls the iterator for every item in the database within
 // the range [pivot, first], until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) DescendLessOrEqual(index string, pivot PivotKV[T],
@@ -566,7 +568,7 @@ func (tx *Tx[T]) DescendLessOrEqual(index string, pivot PivotKV[T],
 // DescendRange calls the iterator for every item in the database within
 // the range [lessOrEqual, greaterThan), until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) DescendRange(index string, lessOrEqual, greaterThan PivotKV[T],
@@ -579,7 +581,7 @@ func (tx *Tx[T]) DescendRange(index string, lessOrEqual, greaterThan PivotKV[T],
 // AscendEqual calls the iterator for every item in the database that equals
 // pivot, until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) AscendEqual(index string, pivot PivotKV[T],
@@ -607,7 +609,7 @@ func (tx *Tx[T]) AscendEqual(index string, pivot PivotKV[T],
 // DescendEqual calls the iterator for every item in the database that equals
 // pivot, until iterator returns false.
 // When an index is provided, the results will be ordered by the item values
-// as specified by the less() function of the defined index.
+// as specified by the comparator function of the defined index.
 // When an index is not provided, the results will be ordered by the item Key.
 // An invalid index will return an error.
 func (tx *Tx[T]) DescendEqual(index string, pivot PivotKV[T],
@@ -638,6 +640,24 @@ func (tx *Tx[T]) Len() (int, error) {
 		return 0, ErrTxClosed
 	}
 	return tx.db.keys.Len(), nil
+}
+
+// IndexLen returns the number of items in the index
+// if index identifier is empty the total Len of the DB will be returned
+func (tx *Tx[T]) IndexLen(index string) (int, error) {
+	if tx.db == nil {
+		return 0, ErrTxClosed
+	}
+	if index == "" {
+		return tx.db.keys.Len(), nil
+	}
+	if _, ok := tx.db.indices[index]; !ok {
+		return 0, ErrIndexNotFound
+	}
+	if tx.db.indices[index].btr == nil {
+		return 0, ErrNotFound
+	}
+	return tx.db.indices[index].btr.Len(), nil
 }
 
 // CreateIndex builds a new index and populates it with items.

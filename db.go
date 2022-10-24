@@ -33,6 +33,9 @@ var (
 	// ErrNotFound is returned when an item or index is not in the database.
 	ErrNotFound = errors.New("not found")
 
+	// ErrIndexNotFound is returned when an index is not in the database.
+	ErrIndexNotFound = errors.New("index not found")
+
 	// ErrInvalid is returned when the database file is an invalid format.
 	ErrInvalid = errors.New("invalid database")
 
@@ -124,6 +127,8 @@ type Config[T any] struct {
 	// this callback will not be called. If this callback is present, then the
 	// deletion of the timed-out item is the explicit responsibility of this
 	// callback.
+	// WARNING: This callback is called multiple times on each expired key if not deleted inside function within
+	// the same tick of the background process.
 	OnExpiredSync func(key string, value T, tx *Tx[T]) error
 }
 
@@ -132,6 +137,8 @@ type expirationCtx[T any] struct {
 	db *DB[T]
 }
 
+// checkNoVisibleFields checks if the type T has no visible fields.
+// throws an error if it has not even one. On built-in types no error will be thrown
 func checkNoVisibleFields[T any](a T) error {
 	visibleFields := 0
 	rt := reflect.TypeOf(a) // take type of input
@@ -189,8 +196,10 @@ func checkTypeStruct[T any](a T) bool {
 	return true
 }
 
-// Open opens a database at the provided path.
+// Open opens a database at the provided path and optionally an object whose struct should be used for the values.
 // If the file does not exist then it will be created automatically.
+// If the file exists then the database will be loaded from the file (do not open a database on the same file twice).
+// the returned DB object can be used for future operations
 func Open[T any](path string, typeObject ...T) (*DB[T], error) {
 	var checkObj T
 	if len(typeObject) > 1 {
@@ -311,16 +320,12 @@ func (db *DB[T]) Load(rd io.Reader) error {
 // keys that match the specified pattern. This is a very simple pattern
 // match where '*' matches on any number characters and '?' matches on
 // any one character.
-// The less function compares if string 'a' is less than string 'b'.
-// It allows for indexes to create custom ordering. It's possible
-// that the strings may be textual or binary. It's up to the provided
-// less function to handle the content format and comparison.
-// There are some default less function that can be used such as
-// IndexString, IndexBinary, etc.
+// The comparator function compares if object 'a' is less than object 'b'.
+// It allows for indexes to create custom ordering
 func (db *DB[T]) CreateIndex(name, pattern string,
-	less ...func(a, b T) bool) error {
+	comparator ...func(a, b T) bool) error {
 	return db.Update(func(tx *Tx[T]) error {
-		return tx.CreateIndex(name, pattern, less...)
+		return tx.CreateIndex(name, pattern, comparator...)
 	})
 }
 
@@ -329,16 +334,16 @@ func (db *DB[T]) CreateIndex(name, pattern string,
 // Ascend* and Descend* methods.
 // If a previous index with the same name exists, that index will be deleted.
 func (db *DB[T]) ReplaceIndex(name, pattern string,
-	less ...func(a, b T) bool) error {
+	comparator ...func(a, b T) bool) error {
 	return db.Update(func(tx *Tx[T]) error {
-		err := tx.CreateIndex(name, pattern, less...)
+		err := tx.CreateIndex(name, pattern, comparator...)
 		if err != nil {
 			if err == ErrIndexExists {
 				err := tx.DropIndex(name)
 				if err != nil {
 					return err
 				}
-				return tx.CreateIndex(name, pattern, less...)
+				return tx.CreateIndex(name, pattern, comparator...)
 			}
 			return err
 		}
