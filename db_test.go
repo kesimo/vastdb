@@ -9,6 +9,7 @@ package vastdb
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -23,12 +24,15 @@ type mock struct {
 	Num       int    `json:"Num"`
 }
 
-// wait until the next second with zero milliseconds and nanoseconds reached
+// wait until the next second with zero millisecond reached
 func testWaitZeroSecond() {
 	now := time.Now()
-	for now.Nanosecond() > 0 || now.Nanosecond() > 0 {
+	untilTime := now.Add(time.Second * 2)
+	until := (math.Round(float64(untilTime.UnixMilli() / 1000))) * 1000
+	for now.UnixMilli() < int64(until) {
 		now = time.Now()
 	}
+	return
 }
 
 func testOpen(t testing.TB) *DB[mock] {
