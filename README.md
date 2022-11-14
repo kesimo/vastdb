@@ -261,7 +261,7 @@ for Pivots, you have tu use an object of type `*vastdb.PivotKV[T]`
 its a struct that contains the `key` and the `value` of the item
 and used for fallback in case the index is empty -> using the `k` property
 
-`*vastdb.PivotKV[customItem]{k: "keyA", v: customItem{Num: 1}}`
+`*vastdb.PivotKV[customItem]{K: "keyA", V: customItem{Num: 1}}`
 
 
 Example usage of `AscendLessThan`:
@@ -270,7 +270,7 @@ Example usage of `AscendLessThan`:
 // [...]
 // iterate over all items in the database that have a Num field less than 10
 err := db.View(func(tx *Tx[mock]) error {
-    err := tx.AscendLessThan("num", *vastdb.PivotKV[customItem]{v: customItem{Num: 10}}, 
+    err := tx.AscendLessThan("num", *vastdb.PivotKV[customItem]{V: customItem{Num: 10}}, 
 	func(key string, val mock) bool {
 		//should always be true
 		if val.Num < 10 { 

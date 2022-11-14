@@ -74,7 +74,7 @@ func Benchmark_Set(b *testing.B) {
 	//err = testPrepareStringIndex(db)
 	//err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -108,7 +108,7 @@ func Benchmark_Set_1_index(b *testing.B) {
 	//err = testPrepareStringIndex(db)
 	//err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -136,7 +136,7 @@ func Benchmark_Set_2_index(b *testing.B) {
 	err = testPrepareStringIndex(db)
 	//err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -164,7 +164,7 @@ func Benchmark_Set_3_index(b *testing.B) {
 	err = testPrepareStringIndex(db)
 	err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -226,7 +226,7 @@ func BenchmarkPersistTx_Set(b *testing.B) {
 	//err = testPrepareStringIndex(db)
 	//err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -252,7 +252,7 @@ func BenchmarkTx_Get(b *testing.B) {
 	}
 	defer db.Close()
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 	for i := 0; i < 100000; i++ {
 		if err := db.Update(func(tx *Tx[mockB]) error {
@@ -327,7 +327,7 @@ func BenchmarkTx_Get_Parallel(b *testing.B) {
 	//err = testPrepareStringIndex(db)
 	//err = testPrepareCombinedIndex(db)
 	if err != nil {
-		b.Errorf("failed to create index: %v", err)
+		b.Errorf("failed to create index: %V", err)
 	}
 
 	if err := db.Update(func(tx *Tx[mockB]) error {
