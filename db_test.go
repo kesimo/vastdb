@@ -84,17 +84,17 @@ func TestDB_Open(t *testing.T) {
 	// test using pointer as value
 	_, err = Open("", &struct{ Key string }{Key: "test"})
 	if err != nil {
-		t.Fatalf("should be able to open a database with a pointer as value: %V", err)
+		t.Fatalf("should be able to open a database with a pointer as value: %v", err)
 	}
 	// test using slice as value
 	_, err = Open("", []struct{ Key string }{{Key: "test"}})
 	if err != nil {
-		t.Fatalf("should be able to open a database with a slice as value: %V", err)
+		t.Fatalf("should be able to open a database with a slice as value: %v", err)
 	}
 	// test using map as value
 	_, err = Open("", map[string]struct{ Key string }{"test": {Key: "test"}})
 	if err != nil {
-		t.Fatalf("should be able to open a database with a map as value: %V", err)
+		t.Fatalf("should be able to open a database with a map as value: %v", err)
 	}
 	// test using interface as value -> should fail
 	_, err = Open("", interface{}(struct{ Key string }{Key: "test"}))
@@ -104,17 +104,17 @@ func TestDB_Open(t *testing.T) {
 	// test using struct with pointers as value
 	_, err = Open("", struct{ Key *string }{Key: new(string)})
 	if err != nil {
-		t.Fatalf("should be able to open a database with a struct with pointers as value: %V", err)
+		t.Fatalf("should be able to open a database with a struct with pointers as value: %v", err)
 	}
 	// test using slice with pointers as value
 	_, err = Open("", []*mock{})
 	if err != nil {
-		t.Fatalf("should be able to open a database with a slice with pointers as value: %V", err)
+		t.Fatalf("should be able to open a database with a slice with pointers as value: %v", err)
 	}
 	// test using multiple values
 	_, err = Open("", struct{ Key string }{Key: "test"}, struct{ Key string }{Key: "test"})
 	if err != nil {
-		t.Fatalf("should be able to open a database with multiple values: %V", err)
+		t.Fatalf("should be able to open a database with multiple values: %v", err)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestDB_BackgroundOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 201 {
-		t.Fatalf("expecting '%V', got '%V'", 201, n)
+		t.Fatalf("expecting '%v', got '%v'", 201, n)
 	}
 	time.Sleep(time.Millisecond * 1500)
 	db = testReOpen(t, db)
@@ -169,7 +169,7 @@ func TestDB_BackgroundOperations(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 200 {
-		t.Fatalf("expecting '%V', got '%V'", 200, n)
+		t.Fatalf("expecting '%v', got '%v'", 200, n)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestDB_SaveLoad(t *testing.T) {
 			}
 			if ex != val {
 				if ex.Key != val.Key || ex.Workspace != val.Workspace || ex.Num != val.Num {
-					t.Fatalf("expected %V, got %V", ex, val)
+					t.Fatalf("expected %v, got %v", ex, val)
 				}
 			}
 		}
@@ -273,7 +273,7 @@ func TestDB_SaveLoadExceedBuffer(t *testing.T) {
 	}()
 	err = db.Snapshot(f)
 	if err != nil {
-		t.Errorf("error saving db: %V", err)
+		t.Errorf("error saving db: %v", err)
 	}
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func TestDB_SaveLoadExceedBuffer(t *testing.T) {
 	f3, err := os.Open("temp.db")
 	err = db3.Load(f3)
 	if err != nil {
-		t.Errorf("error loading db: %V", err)
+		t.Errorf("error loading db: %v", err)
 	}
 	if err := db3.View(func(tx *Tx[mock]) error {
 		for i := 0; i < 50000; i++ {
@@ -319,7 +319,7 @@ func TestDB_SaveLoadExceedBuffer(t *testing.T) {
 			}
 			if ex != val {
 				if ex.Key != val.Key || ex.Workspace != val.Workspace || ex.Num != val.Num {
-					t.Fatalf("expected %V, got %V", ex, val)
+					t.Fatalf("expected %v, got %v", ex, val)
 				}
 			}
 		}
@@ -335,7 +335,7 @@ func TestDB_ErrAlreadyClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != ErrDatabaseClosed {
-		t.Fatalf("expecting '%V', got '%V'", ErrDatabaseClosed, err)
+		t.Fatalf("expecting '%v', got '%v'", ErrDatabaseClosed, err)
 	}
 }
 
@@ -392,7 +392,7 @@ func TestDB_ErrShrinkInProcess(t *testing.T) {
 	}()
 	wg.Wait()
 	//println(123)
-	//fmt.Printf("%V\n%V\n", err1, err2)
+	//fmt.Printf("%v\n%v\n", err1, err2)
 	if err1 != ErrShrinkInProcess && err2 != ErrShrinkInProcess {
 		t.Fatal("expecting a shrink in process error")
 	}
@@ -441,12 +441,12 @@ func TestDB_len(t *testing.T) {
 				Num:       50,
 			}, nil)
 			if err != nil {
-				t.Errorf("error setting key: %V", err)
+				t.Errorf("error setting key: %v", err)
 			}
 		}
 		return nil
 	}); err != nil {
-		t.Errorf("error updating db: %V", err)
+		t.Errorf("error updating db: %v", err)
 	}
 	// test get len by using view
 	n := 0
@@ -459,15 +459,15 @@ func TestDB_len(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 20 {
-		t.Fatalf("expecting (tx.Len()) '%V', got '%V'", 20, n)
+		t.Fatalf("expecting (tx.Len()) '%v', got '%v'", 20, n)
 	}
 	// test get len by using db.Len()
 	n, err = db.Len()
 	if err != nil {
-		t.Errorf("error getting len: %V", err)
+		t.Errorf("error getting len: %v", err)
 	}
 	if n != 20 {
-		t.Fatalf("expecting (db.Len()) '%V', got '%V'", 20, n)
+		t.Fatalf("expecting (db.Len()) '%v', got '%v'", 20, n)
 	}
 }
 
@@ -483,7 +483,7 @@ func TestDB_Set(t *testing.T) {
 		t.Fatal(err)
 	}
 	if prev != nil {
-		t.Fatalf("expecting nil, got %V", prev)
+		t.Fatalf("expecting nil, got %v", prev)
 	}
 	//test set empty key
 	prev, err = db.Set("", mock{Key: "key-empty"}, nil)
@@ -506,7 +506,7 @@ func TestDB_SetWithTTL(t *testing.T) {
 		t.Errorf("expecting error, got nil")
 	}
 	if item != nil {
-		t.Errorf("expecting nil, got %V", item)
+		t.Errorf("expecting nil, got %v", item)
 	}
 }
 
@@ -518,7 +518,7 @@ func TestDB_OnExpired(t *testing.T) {
 	db.SetConfig(Config[mock]{
 		OnExpired: func(keys []string) {
 			if len(keys) != 10 {
-				t.Errorf("OnExpired: expecting 10 keys, got %V", len(keys))
+				t.Errorf("OnExpired: expecting 10 keys, got %v", len(keys))
 			}
 		},
 	})
@@ -535,7 +535,7 @@ func TestDB_OnExpired(t *testing.T) {
 		t.Fatal(err)
 	}
 	if l != 10 {
-		t.Errorf("Should not delete items when overwriting onExpires Function: expecting 10 items, got %V", l)
+		t.Errorf("Should not delete items when overwriting onExpires Function: expecting 10 items, got %v", l)
 	}
 }
 
@@ -554,7 +554,7 @@ func TestDB_OnExpiredSync(t *testing.T) {
 			onExpSyncCount = onExpSyncCount % 10
 			calcKey := fmt.Sprintf("key-ttl-%d", onExpSyncCount)
 			if key != calcKey || value.Key != calcKey {
-				t.Errorf("OnExpiredSync: expecting %s, got %V (val.key=%V)", calcKey, key, value.Key)
+				t.Errorf("OnExpiredSync: expecting %s, got %v (val.key=%v)", calcKey, key, value.Key)
 			}
 			onExpSyncCount++
 
@@ -580,17 +580,17 @@ func TestDB_SetGetPreviousItem(t *testing.T) {
 		t.Fatal(err)
 	}
 	if prev != nil {
-		t.Fatalf("expecting nil, got %V", prev)
+		t.Fatalf("expecting nil, got %v", prev)
 	}
 	prev, err = db.Set("key", mock{Key: "updated"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if prev == nil {
-		t.Fatalf("expecting not nil, got %V", prev)
+		t.Fatalf("expecting not nil, got %v", prev)
 	}
 	if (*prev).Key != "first" {
-		t.Fatalf("expecting 'first', got %V", prev)
+		t.Fatalf("expecting 'first', got %v", prev)
 	}
 }
 
@@ -608,7 +608,7 @@ func TestDB_Get(t *testing.T) {
 		t.Fatalf("expecting error, got nil")
 	}
 	if errNonExistingKey != ErrNotFound {
-		t.Fatalf("expecting NotFound error, got %V", errNonExistingKey)
+		t.Fatalf("expecting NotFound error, got %v", errNonExistingKey)
 	}
 	//test get key
 	_, errSet := db.Set("key1", mock{
@@ -623,7 +623,7 @@ func TestDB_Get(t *testing.T) {
 		t.Fatal(err)
 	}
 	if item.Key != "key" || item.Num != 50 {
-		t.Fatalf("expecting %V, got %V", mock{
+		t.Fatalf("expecting %v, got %v", mock{
 			Key: "key",
 			Num: 50,
 		}, item)
@@ -644,7 +644,7 @@ func TestDB_Del(t *testing.T) {
 		t.Fatalf("expecting error, got nil")
 	}
 	if errNonExistingKey != ErrNotFound {
-		t.Fatalf("expecting NotFound error, got %V", errNonExistingKey)
+		t.Fatalf("expecting NotFound error, got %v", errNonExistingKey)
 	}
 	//test del key if index is set
 	err := db.CreateIndex("num", "*", func(a, b mock) bool { return a.Num < b.Num })
@@ -664,7 +664,7 @@ func TestDB_Del(t *testing.T) {
 	}
 	_, err = db.Get("key1")
 	if err != ErrNotFound {
-		t.Fatalf("expecting NotFound error, got %V", err)
+		t.Fatalf("expecting NotFound error, got %v", err)
 	}
 }
 
@@ -1091,7 +1091,7 @@ func TestTx_AscendAll_Struct(t *testing.T) {
 			return true
 		})
 		tx.AscendRange("int", PivotKV[mock]{V: mock{Num: 4}}, PivotKV[mock]{V: mock{Num: 8}}, func(key string, value mock) bool {
-			t.Logf("ASCENDRANGE: %s %V", key, value)
+			t.Logf("ASCENDRANGE: %s %v", key, value)
 			if value.Num < 4 || value.Num >= 8 {
 				t.Fatalf("AscendRange: expecting >= 4 and < 8, got %d", value.Num)
 			}
@@ -1133,23 +1133,23 @@ func TestTx_AscendAll_Int(t *testing.T) {
 	}
 	if err := db.View(func(tx *Tx[int64]) error {
 		tx.Ascend("int", func(key string, value int64) bool {
-			t.Logf("ASCEND: %s %V", key, value)
+			t.Logf("ASCEND: %s %v", key, value)
 			return true
 		})
 		tx.AscendGreaterOrEqual("int", PivotKV[int64]{K: "", V: int64(8)}, func(key string, value int64) bool {
-			t.Logf("ASCENDGE: %s %V", key, value)
+			t.Logf("ASCENDGE: %s %v", key, value)
 			return true
 		})
 		tx.AscendLessThan("int", PivotKV[int64]{V: 3}, func(key string, value int64) bool {
-			t.Logf("ASCENDLT: %s %V", key, value)
+			t.Logf("ASCENDLT: %s %v", key, value)
 			return true
 		})
 		tx.AscendRange("int", PivotKV[int64]{V: 4}, PivotKV[int64]{V: 8}, func(key string, value int64) bool {
-			t.Logf("ASCENDRANGE: %s %V", key, value)
+			t.Logf("ASCENDRANGE: %s %v", key, value)
 			return true
 		})
 		tx.AscendEqual("int", PivotKV[int64]{V: 4}, func(key string, value int64) bool {
-			t.Logf("ASCENDEQUAL: %s %V", key, value)
+			t.Logf("ASCENDEQUAL: %s %v", key, value)
 			return true
 		})
 		return nil
@@ -1214,10 +1214,10 @@ func TestTx_Ascend(t *testing.T) {
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
 		err := tx.Ascend("workspace", func(key string, val mock) bool {
-			t.Logf("key: %s, val: %+V", key, val)
+			t.Logf("key: %s, val: %v", key, val)
 			wsExpected := fmt.Sprintf("wss1%d", i)
 			if val.Workspace != wsExpected {
-				t.Fatalf("expecting '%V', got '%V'", wsExpected, val.Workspace)
+				t.Fatalf("expecting '%v', got '%v'", wsExpected, val.Workspace)
 			}
 			i++
 			return true
@@ -1253,9 +1253,9 @@ func TestTx_AscendEqual(t *testing.T) {
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
 		err := tx.AscendEqual("workspace", PivotKV[mock]{K: "", V: mock{Workspace: "wss5"}}, func(key string, val mock) bool {
-			t.Logf("key: %s, val: %+V", key, val)
+			t.Logf("key: %s, val: %v", key, val)
 			if val.Workspace != "wss5" {
-				t.Fatalf("expecting 'wss5', got '%V'", val.Workspace)
+				t.Fatalf("expecting 'wss5', got '%v'", val.Workspace)
 			}
 			i++
 			return true
@@ -1376,7 +1376,7 @@ func TestTx_AscendRange(t *testing.T) {
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 0
 		err := tx.AscendRange("num", PivotKV[mock]{V: mock{Num: 5}}, PivotKV[mock]{V: mock{Num: 7}}, func(key string, val mock) bool {
-			t.Logf("key: %s, val: %+V", key, val)
+			t.Logf("key: %s, val: %v", key, val)
 			i++
 			return true
 		})
@@ -1644,10 +1644,10 @@ func TestTx_Descend(t *testing.T) {
 	if err := db.View(func(tx *Tx[mock]) error {
 		i := 9
 		err := tx.Descend("workspace", func(key string, val mock) bool {
-			//t.Logf("key: %s, val: %+V", key, val)
+			//t.Logf("key: %s, val: %v", key, val)
 			wsExpected := fmt.Sprintf("wss1%d", i)
 			if val.Workspace != wsExpected {
-				t.Fatalf("expecting '%V', got '%V'", wsExpected, val.Workspace)
+				t.Fatalf("expecting '%v', got '%v'", wsExpected, val.Workspace)
 			}
 			i--
 			return true
@@ -1724,14 +1724,14 @@ func TestTx_TTL(t *testing.T) {
 			t.Fatal(err)
 		}
 		if dur1 > time.Second || dur1 <= 0 {
-			t.Fatalf("expecting between zero and one second, got '%V'", dur1)
+			t.Fatalf("expecting between zero and one second, got '%v'", dur1)
 		}
 		dur1, err = tx.TTL("key2")
 		if err != nil {
 			t.Fatal(err)
 		}
 		if dur1 >= 0 {
-			t.Fatalf("expecting a negative value, got '%V'", dur1)
+			t.Fatalf("expecting a negative value, got '%v'", dur1)
 		}
 		return nil
 	})
@@ -1757,7 +1757,7 @@ func TestTx_TTLAfterReopen(t *testing.T) {
 			return err
 		}
 		if val.Key != "key1" {
-			t.Fatalf("expecting '%V', got '%V'", "val1", val)
+			t.Fatalf("expecting '%v', got '%v'", "val1", val)
 		}
 		return nil
 	})
@@ -1772,7 +1772,7 @@ func TestTx_TTLAfterReopen(t *testing.T) {
 			t.Fatal("expecting not found")
 		}
 		if val != nil {
-			t.Fatalf("expecting '%V', got '%V'", nil, val)
+			t.Fatalf("expecting '%v', got '%v'", nil, val)
 		}
 
 		return nil

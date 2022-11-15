@@ -162,7 +162,7 @@ func checkNoVisibleFields[T any](a T) error {
 	}
 	if rt.Kind() != reflect.Struct {
 		if rt.Name() == "" {
-			return fmt.Errorf("vastdb: %V type is not supported", rt)
+			return fmt.Errorf("vastdb: %v type is not supported", rt)
 		}
 		return nil
 	}
