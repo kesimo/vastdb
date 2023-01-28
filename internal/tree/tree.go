@@ -7,7 +7,7 @@
 
 package tree
 
-type Btree[T any] interface {
+type Store[T any] interface {
 	Set(item *T) (prev *T, err error)
 	Delete(key *T) (prev *T, err error)
 	Get(key *T) (value *T, ok bool)

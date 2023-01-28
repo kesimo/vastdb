@@ -29,7 +29,7 @@ func testTreeLess(a, b *dbItem[mockTestTree]) bool {
 	return a.key < b.key
 }
 
-func testCreateGBTree() *GBTree[*dbItem[mockTestTree]] {
+func testCreateGBTree() *GBtree[*dbItem[mockTestTree]] {
 	return NewGBtree[*dbItem[mockTestTree]](testTreeLess)
 }
 

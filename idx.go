@@ -24,7 +24,7 @@ type IndexOptions struct {
 // index represents a b-tree or r-tree index and also acts as the
 // b-tree/r-tree context for itself.
 type index[T any] struct {
-	btr     tree.Btree[*dbItem[T]] // contains the items
+	btr     tree.Store[*dbItem[T]] // contains the items
 	name    string                 // name of the index
 	pattern string                 // a required Key pattern
 	less    func(a, b T) bool      // less comparison function

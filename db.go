@@ -69,8 +69,8 @@ var (
 type DB[T any] struct {
 	mu          sync.RWMutex           // the gatekeeper for all fields
 	persistence *persistence[T]        // persistence layer
-	keys        tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
-	exps        tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
+	keys        tree.Store[*dbItem[T]] // a tree of all item ordered by Key
+	exps        tree.Store[*dbItem[T]] // a tree of items ordered by expiration
 	indices     map[string]*index[T]   // map containing all indices
 	insIndices  []*index[T]            // a reuse buffer for gathering indices
 	closed      bool                   // set when the database has been closed

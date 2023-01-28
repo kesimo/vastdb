@@ -30,8 +30,8 @@ type Tx[T any] struct {
 
 type txWriteContext[T any] struct {
 	// rollback when deleteAll is called
-	rbKeys          tree.Btree[*dbItem[T]] // a tree of all item ordered by Key
-	rbExps          tree.Btree[*dbItem[T]] // a tree of items ordered by expiration
+	rbKeys          tree.Store[*dbItem[T]] // a tree of all item ordered by Key
+	rbExps          tree.Store[*dbItem[T]] // a tree of items ordered by expiration
 	rbIdxs          map[string]*index[T]   // the index trees.
 	rollbackItems   map[string]*dbItem[T]  // details for rolling back tx.
 	commitItems     map[string]*dbItem[T]  // details for committing tx.
@@ -353,7 +353,7 @@ func (tx *Tx[T]) scan(desc, gt, lt bool, index string, start PivotKV[T], stop Pi
 		dbi := item
 		return iterator(dbi.key, dbi.val)
 	}
-	var tr tree.Btree[*dbItem[T]]
+	var tr tree.Store[*dbItem[T]]
 	if index == "" {
 		// empty index means we will use the keys tree.
 		tr = tx.db.keys
